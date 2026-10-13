@@ -2,7 +2,7 @@
 // la seguridad la ponen las reglas (RLS) de supabase/schema.sql.
 // Si SUPABASE_URL queda vacío, la app arranca en modo demo (sin usuarios, datos en el navegador).
 export const CONFIG = {
-  SUPABASE_URL: "",
-  SUPABASE_ANON_KEY: "",
+  SUPABASE_URL: "https://trroercvimupqlpbvndx.supabase.co",
+  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRycm9lcmN2aW11cHFscGJ2bmR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE5MjAzMDcsImV4cCI6MjEwNzQ5NjMwN30.At6SIQprAcsXaHI4zYGC9o4uD4lLgnoJEELfJ4vGC6g",
   PRECIO_MENSUAL_TEXTO: "$ 20.000", // solo para mostrar; el monto real se cobra desde la función (MP_PRECIO_MENSUAL)
 };
