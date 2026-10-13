@@ -57,6 +57,7 @@
       <nav class="tabs" role="tablist">
         <button id="tab-productos" role="tab" aria-selected="true" data-tab="productos">Productos</button>
         <button id="tab-insumos" role="tab" aria-selected="false" data-tab="insumos">Insumos</button>
+        <button id="tab-gastos" role="tab" aria-selected="false" data-tab="gastos">Gastos fijos</button>
         <button id="tab-negocio" role="tab" aria-selected="false" data-tab="negocio">Mi negocio</button>
       </nav>
     </header>
@@ -100,6 +101,36 @@
       </form>
     </div>
   </section>
+  <section id="view-gastos" data-view="gastos" hidden>
+    <div class="ins-head">
+      <div>
+        <h2>Gastos fijos del mes</h2>
+        <p class="hint">Lo que pagás todos los meses vendas o no: alquiler, luz, gas, sueldos, delivery. Se reparte entre todo lo que vendés en el mes y se suma al costo de cada producto.</p>
+      </div>
+    </div>
+    <div class="precio" style="margin-top:12px">
+      <div class="kpi"><span class="k">Total por mes</span><span class="v" id="gas-total">$ 0</span></div>
+      <div class="kpi"><label class="k" for="gas-unidades">Productos que vendés por mes</label><span class="v"><input id="gas-unidades" class="n" type="number" min="0" step="1" placeholder="Ej: 200"></span><span class="note">Contá todo: lomitos, hamburguesas, papas, extras.</span></div>
+      <div class="kpi hl"><span class="k">Gasto fijo por producto</span><span class="v" id="gas-por-unidad">—</span><span class="note" id="gas-nota"></span></div>
+    </div>
+    <div class="card">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Gasto</th><th class="r">Monto por mes ($)</th><th></th></tr></thead>
+          <tbody id="gas-body"></tbody>
+        </table>
+      </div>
+      <div class="chips" id="gas-sugeridos" aria-label="Gastos comunes">
+        <button type="button">Alquiler</button><button type="button">Luz</button><button type="button">Gas</button><button type="button">Agua</button><button type="button">Sueldos y cargas sociales</button><button type="button">Delivery y logística</button><button type="button">Internet y teléfono</button><button type="button">Monotributo e impuestos</button><button type="button">Limpieza</button>
+      </div>
+      <form class="addrow" id="newgas" style="margin-top:10px">
+        <label class="f">Gasto<input id="ng-nombre" placeholder="Ej: Alquiler" required></label>
+        <label class="f">Monto por mes ($)<input id="ng-monto" class="n" type="number" step="any" min="0" required></label>
+        <button class="btn primary" type="submit">Agregar gasto</button>
+      </form>
+    </div>
+  </section>
+
   <section id="view-negocio" data-view="negocio" hidden>
     <div class="card" style="max-width:560px">
       <h2>Mi negocio</h2>

@@ -1,11 +1,11 @@
-// Lógica de la calculadora: insumos, productos, preparaciones y precio sugerido.
+// Lógica de la calculadora: insumos, productos, preparaciones, gastos fijos y precio sugerido.
 // Recibe un "store" con subscribe(col, cb), set(col, id, body) y del(col, id).
 export function iniciarCalculadora(s) {
   const $ = (s) => document.querySelector(s);
   const fmt = (n) => "$ " + Math.round(n || 0).toLocaleString("es-AR");
   const fmt2 = (n) => "$ " + (n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const UNID = { kg: { base: "g", f: 1000 }, l: { base: "ml", f: 1000 }, u: { base: "u", f: 1 } };
-  const state = { insumos: {}, productos: {}, sel: null, tab: "productos" };
+  const state = { insumos: {}, productos: {}, gastos: {}, ajustes: {}, sel: null, tab: "productos" };
 
   // ---------- Almacenamiento: db compartida si está, si no el navegador ----------
   let store = null;
@@ -63,7 +63,16 @@ export function iniciarCalculadora(s) {
     return Math.ceil(p / 100) * 100; // redondeo a $100
   }
   const margenReal = (costo, precio) => (precio > 0 ? (1 - costo / precio) * 100 : null);
-  const clsMargen = (m) => (m == null ? "" : m >= 55 ? "ok" : m >= 40 ? "mid" : "low");
+  // Sin gastos fijos el margen es "bruto" (solo insumos) y tiene que ser alto; con gastos fijos es ganancia neta.
+  const clsMargen = (m) => (m == null ? "" : hayFijos() ? (m >= 20 ? "ok" : m >= 10 ? "mid" : "low") : (m >= 55 ? "ok" : m >= 40 ? "mid" : "low"));
+
+  // ---------- Gastos fijos ----------
+  // Se reparten en partes iguales entre todo lo que se vende en el mes.
+  const totalFijos = () => Object.values(state.gastos).reduce((a, g) => a + (Number(g.monto) || 0), 0);
+  const unidadesMes = () => Number((state.ajustes.general || {}).unidadesMes) || 0;
+  const fijoPorUnidad = () => (unidadesMes() > 0 ? totalFijos() / unidadesMes() : 0);
+  const hayFijos = () => fijoPorUnidad() > 0;
+  const margenDefault = () => (hayFijos() ? 30 : 60);
 
   // ---------- Render ----------
   function render() {
@@ -72,6 +81,7 @@ export function iniciarCalculadora(s) {
     renderLista();
     renderFicha();
     renderInsumos();
+    renderGastos();
   }
   function prodsOrdenados() {
     return Object.entries(state.productos).sort((a, b) => (a[1].nombre || "").localeCompare(b[1].nombre || "", "es"));
@@ -94,7 +104,8 @@ export function iniciarCalculadora(s) {
         h.textContent = "Preparaciones propias";
         el.appendChild(h);
       }
-      const { total } = costoProducto(p);
+      const { total: tIns } = costoProducto(p);
+      const total = p.esPreparacion ? tIns : tIns + fijoPorUnidad();
       const pv = Number(p.precioVenta) || 0;
       const m = margenReal(total, pv);
       const b = document.createElement("button");
@@ -106,8 +117,8 @@ export function iniciarCalculadora(s) {
       b.querySelector(".c").textContent = fmt(total);
       const sub = b.querySelector(".sub");
       if (p.esPreparacion) { b.querySelector(".c").textContent = ""; sub.textContent = porUnidadTxt(p, total); }
-      else if (pv) { sub.innerHTML = "Vendés a " + fmt(pv) + ' · margen <b class="' + clsMargen(m) + '">' + Math.round(m) + "%</b>"; }
-      else sub.textContent = "Sugerido " + fmt(precioSugerido(total, p.margen ?? 60));
+      else if (pv) { sub.innerHTML = "Vendés a " + fmt(pv) + " · " + (hayFijos() ? "ganancia" : "margen") + ' <b class="' + clsMargen(m) + '">' + Math.round(m) + "%</b>"; }
+      else sub.textContent = "Sugerido " + fmt(precioSugerido(total, p.margen ?? margenDefault()));
       b.onclick = () => { state.sel = id; render(); };
       el.appendChild(b);
     });
@@ -119,10 +130,12 @@ export function iniciarCalculadora(s) {
     if (!p) { el.innerHTML = ""; return; }
     const id = state.sel;
     const { total, filas } = costoProducto(p);
-    const margen = p.margen ?? 60;
-    const sug = precioSugerido(total, margen);
+    const fijo = fijoPorUnidad();
+    const costoTotal = total + fijo;
+    const margen = p.margen ?? margenDefault();
+    const sug = precioSugerido(costoTotal, margen);
     const pv = Number(p.precioVenta) || 0;
-    const mr = margenReal(total, pv);
+    const mr = margenReal(costoTotal, pv);
 
     el.innerHTML = `
       <div class="ficha">
@@ -154,13 +167,15 @@ export function iniciarCalculadora(s) {
         <div ${p.esPreparacion ? "hidden" : ""}>
           <h3 style="margin-bottom:10px">Precio</h3>
           <div class="precio">
-            <div class="kpi"><span class="k">Costo de insumos</span><span class="v">${fmt(total)}</span><span class="note">por unidad vendida</span></div>
-            <div class="kpi"><label class="k" for="f-margen">Margen que querés</label><span class="v"><input id="f-margen" class="n" type="number" min="0" max="95" step="1" style="width:4.5em"> %</span><span class="note">sobre el precio de venta</span></div>
+            <div class="kpi"><span class="k">Costo total</span><span class="v">${fmt(costoTotal)}</span><span class="note">${fijo ? fmt(total) + " de insumos + " + fmt(fijo) + " de gastos fijos" : 'Solo insumos. <button type="button" class="linkbtn" id="f-ir-gastos">Cargá tus gastos fijos</button>'}</span></div>
+            <div class="kpi"><label class="k" for="f-margen">${fijo ? "Ganancia que querés" : "Margen que querés"}</label><span class="v"><input id="f-margen" class="n" type="number" min="0" max="95" step="1" style="width:4.5em"> %</span><span class="note">sobre el precio de venta</span></div>
             <div class="kpi hl"><span class="k">Precio sugerido</span><span class="v">${fmt(sug)}</span><span class="note">redondeado a $100</span></div>
-            <div class="kpi"><label class="k" for="f-pv">Precio al que vendés hoy</label><span class="v">$ <input id="f-pv" class="n" type="number" min="0" step="any"></span><span class="note">${mr == null ? "Cargalo para ver tu margen real" : 'Margen real <b class="' + clsMargen(mr) + '">' + Math.round(mr) + "%</b> · ganás " + fmt(pv - total) + " por unidad"}</span></div>
+            <div class="kpi"><label class="k" for="f-pv">Precio al que vendés hoy</label><span class="v">$ <input id="f-pv" class="n" type="number" min="0" step="any"></span><span class="note">${mr == null ? "Cargalo para ver cuánto ganás" : (fijo ? "Ganancia neta " : "Margen real ") + '<b class="' + clsMargen(mr) + '">' + Math.round(mr) + "%</b> · " + (pv - costoTotal >= 0 ? "ganás " + fmt(pv - costoTotal) : "perdés " + fmt(costoTotal - pv)) + " por unidad"}</span></div>
           </div>
         </div>
-        <div class="ticket" ${p.esPreparacion ? "hidden" : ""}>Fórmula: precio = costo ÷ (1 − margen). Con ${margen}% de margen, de cada ${fmt(sug)} quedan ${fmt(sug - total)} para gastos fijos y ganancia.</div>
+        <div class="ticket" ${p.esPreparacion ? "hidden" : ""}>${fijo
+          ? `Fórmula: precio = costo total ÷ (1 − ganancia). Con ${margen}% de ganancia, de cada ${fmt(sug)} quedan ${fmt(sug - costoTotal)} de ganancia limpia, después de pagar insumos y gastos fijos.`
+          : `Fórmula: precio = costo ÷ (1 − margen). Con ${margen}% de margen, de cada ${fmt(sug)} quedan ${fmt(sug - total)} para gastos fijos y ganancia.`}</div>
       </div>`;
 
     const nombre = $("#f-nombre");
@@ -220,6 +235,7 @@ export function iniciarCalculadora(s) {
       saveProd(id, { items });
     };
 
+    const ir = $("#f-ir-gastos"); if (ir) ir.onclick = () => $("#tab-gastos").click();
     const mg = $("#f-margen"); mg.value = margen;
     mg.onchange = () => saveProd(id, { margen: Number(mg.value) || 0 });
     const pvi = $("#f-pv"); pvi.value = pv || "";
@@ -266,13 +282,62 @@ export function iniciarCalculadora(s) {
     });
   }
 
+  function renderGastos() {
+    const tb = $("#gas-body");
+    if (!tb) return;
+    tb.textContent = "";
+    const gs = Object.entries(state.gastos).sort((a, b) => (Number(b[1].monto) || 0) - (Number(a[1].monto) || 0));
+    if (!gs.length) tb.innerHTML = '<tr><td colspan="3" class="empty">Todavía no cargaste gastos fijos.</td></tr>';
+    gs.forEach(([id, g]) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td><input class="nm" style="width:100%;min-width:140px"></td><td class="r"><input class="n mo" type="number" step="any" min="0"></td><td><button class="btn ghost" type="button" aria-label="Borrar gasto">✕</button></td>`;
+      const nm = tr.querySelector(".nm"), mo = tr.querySelector(".mo");
+      nm.id = "gas-nm-" + id; mo.id = "gas-mo-" + id;
+      nm.value = g.nombre; mo.value = g.monto;
+      const save = () => { const body = { nombre: nm.value.trim() || g.nombre, monto: Number(mo.value) || 0 }; state.gastos[id] = body; render(); store.set("gastos", id, body); };
+      nm.onchange = save; mo.onchange = save;
+      const del = tr.querySelector("button");
+      del.onclick = () => {
+        if (del.dataset.armed) store.del("gastos", id);
+        else { del.dataset.armed = "1"; del.textContent = "¿Borrar?"; setTimeout(() => { if (del.isConnected) { delete del.dataset.armed; del.textContent = "✕"; } }, 3000); }
+      };
+      tb.appendChild(tr);
+    });
+    const um = $("#gas-unidades");
+    if (document.activeElement !== um) um.value = unidadesMes() || "";
+    $("#gas-total").textContent = fmt(totalFijos());
+    $("#gas-por-unidad").textContent = unidadesMes() ? fmt(fijoPorUnidad()) : "—";
+    $("#gas-nota").textContent = unidadesMes() ? "Esto se suma al costo de cada producto que vendés." : "Cargá cuántos productos vendés por mes para repartir los gastos.";
+  }
+
   // ---------- Formularios fijos ----------
+  if ($("#newgas")) {
+    $("#newgas").onsubmit = (e) => {
+      e.preventDefault();
+      const body = { nombre: $("#ng-nombre").value.trim(), monto: Number($("#ng-monto").value) || 0 };
+      if (!body.nombre) return;
+      const id = newId();
+      state.gastos[id] = body;
+      $("#ng-nombre").value = ""; $("#ng-monto").value = "";
+      render();
+      store.set("gastos", id, body);
+    };
+    document.querySelectorAll("#gas-sugeridos button").forEach((b) => {
+      b.onclick = () => { $("#ng-nombre").value = b.textContent; $("#ng-monto").focus(); };
+    });
+    $("#gas-unidades").onchange = (e) => {
+      const body = Object.assign({}, state.ajustes.general, { unidadesMes: Number(e.target.value) || 0 });
+      state.ajustes = Object.assign({}, state.ajustes, { general: body });
+      render();
+      store.set("ajustes", "general", body);
+    };
+  }
   $("#newprod").onsubmit = (e) => {
     e.preventDefault();
     const n = $("#newprod-name").value.trim();
     if (!n) return;
     const id = newId();
-    state.productos[id] = { nombre: n, items: [], margen: 60, precioVenta: null };
+    state.productos[id] = { nombre: n, items: [], margen: margenDefault(), precioVenta: null };
     state.sel = id;
     $("#newprod-name").value = "";
     render();
@@ -306,4 +371,6 @@ export function iniciarCalculadora(s) {
   render();
   store.subscribe("insumos", (m) => { state.insumos = m; render(); });
   store.subscribe("productos", (m) => { state.productos = m; render(); });
+  store.subscribe("gastos", (m) => { state.gastos = m; render(); });
+  store.subscribe("ajustes", (m) => { state.ajustes = m; render(); });
 }

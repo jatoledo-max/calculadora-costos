@@ -31,6 +31,23 @@ create table if not exists public.productos (
   primary key (negocio_id, id)
 );
 
+-- Gastos fijos del mes (alquiler, luz, sueldos...) y ajustes generales (productos vendidos por mes).
+create table if not exists public.gastos (
+  negocio_id uuid not null references public.negocios (id) on delete cascade,
+  id text not null,
+  datos jsonb not null,
+  actualizado timestamptz not null default now(),
+  primary key (negocio_id, id)
+);
+
+create table if not exists public.ajustes (
+  negocio_id uuid not null references public.negocios (id) on delete cascade,
+  id text not null,
+  datos jsonb not null,
+  actualizado timestamptz not null default now(),
+  primary key (negocio_id, id)
+);
+
 -- ¿El negocio puede usar la app ahora?
 create or replace function public.negocio_activo(n public.negocios)
 returns boolean language sql stable as $$
@@ -49,6 +66,8 @@ $$;
 alter table public.negocios enable row level security;
 alter table public.insumos enable row level security;
 alter table public.productos enable row level security;
+alter table public.gastos enable row level security;
+alter table public.ajustes enable row level security;
 
 drop policy if exists "dueño ve su negocio" on public.negocios;
 create policy "dueño ve su negocio" on public.negocios
@@ -71,4 +90,10 @@ create policy "insumos del negocio" on public.insumos
   for all using (public.puede_usar(negocio_id)) with check (public.puede_usar(negocio_id));
 drop policy if exists "productos del negocio" on public.productos;
 create policy "productos del negocio" on public.productos
+  for all using (public.puede_usar(negocio_id)) with check (public.puede_usar(negocio_id));
+drop policy if exists "gastos del negocio" on public.gastos;
+create policy "gastos del negocio" on public.gastos
+  for all using (public.puede_usar(negocio_id)) with check (public.puede_usar(negocio_id));
+drop policy if exists "ajustes del negocio" on public.ajustes;
+create policy "ajustes del negocio" on public.ajustes
   for all using (public.puede_usar(negocio_id)) with check (public.puede_usar(negocio_id));

@@ -125,3 +125,13 @@ body { margin: 0; }
 .neg-form input[type="color"] { width: 64px; height: 36px; padding: 2px; }
 /* Color propio de cada negocio: los tonos suaves salen del color elegido */
 :root.marca-propia { --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--surface)); --accent-text: color-mix(in srgb, var(--accent) 70%, var(--ink)); }
+
+/* Gastos fijos */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.chips button { font: 600 0.8rem var(--f-body); border: 1px dashed var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
+.chips button:hover { border-color: var(--accent); color: var(--ink); }
+.linkbtn { font: inherit; color: var(--accent-text); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
+.kpi { align-content: start; }
+nav.tabs { overflow-x: auto; max-width: 100%; }
+nav.tabs button { white-space: nowrap; }
+@media (max-width: 480px) { nav.tabs button { padding: 8px 10px; font-size: 0.85rem; } }
