@@ -16,7 +16,7 @@ export default async (req) => {
     const sus = await mercadoPago("/preapproval", {
       method: "POST",
       body: JSON.stringify({
-        reason: "Calculadora de Costos - suscripción mensual",
+        reason: "CalculadoraDeGananciasMV - suscripción mensual",
         external_reference: negs[0].id,
         payer_email: user.email,
         back_url: sitio + "/?pago=ok",

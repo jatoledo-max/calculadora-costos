@@ -1,4 +1,4 @@
-# Calculadora de Costos
+# CalculadoraDeGananciasMV
 
 App web para que rotiserías y negocios de comida sepan cuánto les cuesta cada producto y a cuánto venderlo.
 Cada negocio entra con su cuenta, ve solo sus datos y usa su propio logo y color.
@@ -24,7 +24,7 @@ Tiene 14 días de prueba gratis y después se cobra una suscripción mensual con
    - `SUPABASE_URL`: la misma Project URL.
    - `SUPABASE_SERVICE_ROLE_KEY`: la *service_role key* de Supabase (secreta, nunca en `config.js`).
    - `MP_ACCESS_TOKEN`: el Access Token de producción de Mercado Pago (*Tus integraciones > Credenciales*).
-   - `MP_PRECIO_MENSUAL`: el precio en pesos, por ejemplo `15000`. Actualizar también `PRECIO_MENSUAL_TEXTO` en `config.js`.
+   - `MP_PRECIO_MENSUAL`: el precio en pesos, por ejemplo `20000`. Actualizar también `PRECIO_MENSUAL_TEXTO` en `config.js`.
    - `MP_WEBHOOK_SECRET` (recomendado): la clave secreta del webhook de Mercado Pago.
 4. **Mercado Pago**: en *Tus integraciones > Webhooks*, poner `https://TU-SITIO.netlify.app/.netlify/functions/mp-webhook`
    y marcar el evento *Planes y suscripciones*.

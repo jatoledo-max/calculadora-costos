@@ -11,7 +11,7 @@ function mostrar(nombre) {
 // ---------- Marca del negocio ----------
 function aplicarMarca(neg) {
   $("#neg-titulo").textContent = neg.nombre || "Mi negocio";
-  document.title = (neg.nombre ? neg.nombre + " · " : "") + "Costos";
+  document.title = (neg.nombre ? neg.nombre + " · " : "") + "CalculadoraDeGananciasMV";
   const img = $("#neg-logo-img");
   if (neg.logo) { img.src = neg.logo; img.alt = neg.nombre || "Logo"; img.hidden = false; } else img.hidden = true;
   const root = document.documentElement;

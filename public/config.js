@@ -4,5 +4,5 @@
 export const CONFIG = {
   SUPABASE_URL: "",
   SUPABASE_ANON_KEY: "",
-  PRECIO_MENSUAL_TEXTO: "$ 15.000", // solo para mostrar; el monto real se cobra desde la función (MP_PRECIO_MENSUAL)
+  PRECIO_MENSUAL_TEXTO: "$ 20.000", // solo para mostrar; el monto real se cobra desde la función (MP_PRECIO_MENSUAL)
 };
