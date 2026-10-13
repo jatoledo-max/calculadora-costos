@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Calculadora de Costos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;700&family=Public+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="pantalla-cargando" class="centro"><p class="hint">Cargando…</p></div>
+
+<!-- Ingreso / registro -->
+<div id="pantalla-login" class="centro" hidden>
+  <form id="login-form" class="card auth">
+    <h1 class="app-nombre">Calculadora de Costos</h1>
+    <p class="hint">Sabé cuánto te cuesta cada producto y a cuánto venderlo.</p>
+    <label class="f">Email<input id="login-email" type="email" autocomplete="email" required></label>
+    <label class="f">Contraseña<input id="login-pass" type="password" autocomplete="current-password" minlength="6" required></label>
+    <button class="btn primary" type="submit" id="login-btn">Entrar</button>
+    <button class="btn ghost" type="button" id="login-toggle">¿No tenés cuenta? Creala gratis</button>
+    <button class="btn ghost" type="button" id="login-olvide">Olvidé mi contraseña</button>
+    <p id="login-msg" class="hint" role="status"></p>
+  </form>
+</div>
+
+<!-- Primer ingreso: datos del negocio -->
+<div id="pantalla-alta" class="centro" hidden>
+  <form id="alta-form" class="card auth">
+    <h2>Contanos de tu negocio</h2>
+    <p class="hint">Tenés 14 días de prueba gratis, sin tarjeta.</p>
+    <label class="f">Nombre del negocio<input id="alta-nombre" required maxlength="80" placeholder="Ej: Rotisería Don Pepe"></label>
+    <button class="btn primary" type="submit">Empezar</button>
+    <p id="alta-msg" class="hint" role="status"></p>
+  </form>
+</div>
+
+<!-- Prueba vencida o suscripción caída -->
+<div id="pantalla-pago" class="centro" hidden>
+  <div class="card auth">
+    <h2>Tu prueba gratis terminó</h2>
+    <p class="hint">Tus insumos y productos siguen guardados. Suscribite para seguir usándolos.</p>
+    <p class="precio-plan"><span class="num" id="plan-precio"></span> por mes</p>
+    <button class="btn primary" type="button" id="btn-suscribir">Suscribirme con Mercado Pago</button>
+    <button class="btn ghost" type="button" id="btn-salir-pago">Cerrar sesión</button>
+    <p id="pago-msg" class="hint" role="status"></p>
+  </div>
+</div>
+
+<!-- La app -->
+<div id="pantalla-app" hidden>
+  <div class="brand">
+    <header class="top">
+      <div class="logo-id"><img id="neg-logo-img" alt="" hidden><h1><span id="neg-titulo"></span> <small>Cuánto te cuesta cada producto y a cuánto venderlo</small></h1></div>
+      <nav class="tabs" role="tablist">
+        <button id="tab-productos" role="tab" aria-selected="true" data-tab="productos">Productos</button>
+        <button id="tab-insumos" role="tab" aria-selected="false" data-tab="insumos">Insumos</button>
+        <button id="tab-negocio" role="tab" aria-selected="false" data-tab="negocio">Mi negocio</button>
+      </nav>
+    </header>
+  </div>
+  <div class="wrap">
+  <div class="status" id="status">Conectando…</div>
+
+  <section id="view-productos" data-view="productos">
+    <div class="prod-layout">
+      <aside>
+        <div class="plist" id="plist"></div>
+        <form class="newprod" id="newprod">
+          <input id="newprod-name" placeholder="Nuevo producto (ej: Lomito simple)" aria-label="Nombre del nuevo producto">
+          <button class="btn" type="submit">Agregar</button>
+        </form>
+      </aside>
+      <div id="ficha"></div>
+    </div>
+  </section>
+
+  <section id="view-insumos" data-view="insumos" hidden>
+    <div class="ins-head">
+      <div>
+        <h2>Insumos y precios de compra</h2>
+        <p class="hint">Cargá cada insumo como lo comprás: por ejemplo "Pan de lomito, 12 unidades, $6.000" o "Lomo, 1 kg, $18.000". La app calcula el costo por gramo o por unidad solo.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Insumo</th><th class="r">Compro</th><th>Unidad</th><th class="r">Pago ($)</th><th class="r">Costo de uso</th><th>Actualizado</th><th></th></tr></thead>
+          <tbody id="ins-body"></tbody>
+        </table>
+      </div>
+      <form class="addrow" id="newins" style="margin-top:14px">
+        <label class="f">Insumo<input id="ni-nombre" placeholder="Ej: Queso tybo" required></label>
+        <label class="f">Cantidad<input id="ni-cant" class="n" type="number" step="any" min="0" value="1" required></label>
+        <label class="f">Unidad<select id="ni-unidad"><option value="kg">kg</option><option value="l">litros</option><option value="u">unidades</option></select></label>
+        <label class="f">Precio ($)<input id="ni-precio" class="n" type="number" step="any" min="0" required></label>
+        <button class="btn primary" type="submit">Agregar insumo</button>
+      </form>
+    </div>
+  </section>
+  <section id="view-negocio" data-view="negocio" hidden>
+    <div class="card" style="max-width:560px">
+      <h2>Mi negocio</h2>
+      <p class="hint">El nombre, el logo y el color aparecen arriba en la app.</p>
+      <form id="neg-form" class="neg-form">
+        <label class="f">Nombre del negocio<input id="neg-nombre" required maxlength="80"></label>
+        <label class="f">Logo (JPG o PNG)<input id="neg-logo" type="file" accept="image/*"></label>
+        <label class="f">Color principal<input id="neg-color" type="color"></label>
+        <button class="btn primary" type="submit">Guardar cambios</button>
+        <span id="neg-msg" class="saved" role="status"></span>
+      </form>
+    </div>
+    <div class="card" style="max-width:560px">
+      <h3>Suscripción</h3>
+      <p id="sub-estado" class="hint"></p>
+      <button class="btn" id="btn-salir" type="button">Cerrar sesión</button>
+    </div>
+  </section>
+  </div>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
