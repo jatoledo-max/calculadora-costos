@@ -100,7 +100,7 @@ export function iniciarCalculadora(s) {
     ventas.concat(preps).forEach(([id, p], n) => {
       if (n === ventas.length && preps.length) {
         const h = document.createElement("div");
-        h.className = "grp";
+        h.className = "grp prep";
         h.textContent = "Preparaciones propias";
         el.appendChild(h);
       }
@@ -109,7 +109,7 @@ export function iniciarCalculadora(s) {
       const pv = Number(p.precioVenta) || 0;
       const m = margenReal(total, pv);
       const b = document.createElement("button");
-      b.className = "pitem";
+      b.className = p.esPreparacion ? "pitem prep" : "pitem";
       b.setAttribute("aria-current", id === state.sel ? "true" : "false");
       b.innerHTML = '<span class="nm"></span><span class="det"></span>';
       b.querySelector(".nm").textContent = p.nombre || "(sin nombre)";
@@ -146,7 +146,11 @@ export function iniciarCalculadora(s) {
         <h2 class="sec-t">Costos</h2>
         <div class="ficha-head">
           <input class="title" id="f-nombre" aria-label="Nombre del producto">
-          <button class="btn ghost" id="f-del" type="button">Borrar producto</button>
+          ${p.esPreparacion ? '<span class="tag prep">Preparación propia</span>' : ""}
+          <span class="ficha-acc">
+            <button class="btn ghost" id="f-tipo" type="button">${p.esPreparacion ? "Pasar a producto de venta" : "Pasar a preparación propia"}</button>
+            <button class="btn ghost" id="f-del" type="button">Borrar producto</button>
+          </span>
         </div>
         ${p.esPreparacion ? `<div class="precio">
             <div class="kpi"><span class="k">Costo de la tanda</span><span class="v">${fmt(total)}</span></div>
@@ -164,10 +168,9 @@ export function iniciarCalculadora(s) {
       </div>
       <div class="ficha sec">
         <h2 class="sec-t">Insumos</h2>
-        <div class="prep-row">
-          <label class="chk"><input type="checkbox" id="f-esprep"> <span>Es una preparación propia (se usa en otros productos, como la mayonesa casera)</span></label>
-          <span id="f-rinde-wrap" ${p.esPreparacion ? "" : "hidden"}>Rinde <input id="f-rinde" class="n" type="number" step="any" min="0" style="width:6em"> <select id="f-rinde-u"><option value="g">g</option><option value="ml">ml</option><option value="u">unidades</option></select></span>
-        </div>
+        ${p.esPreparacion ? `<div class="prep-row">
+          <span>Rinde <input id="f-rinde" class="n" type="number" step="any" min="0" style="width:6em"> <select id="f-rinde-u"><option value="g">g</option><option value="ml">ml</option><option value="u">unidades</option></select> por tanda</span>
+        </div>` : ""}
         <div>
           <h3>${p.esPreparacion ? "Receta (una tanda)" : "Receta (una porción)"}</h3>
           <div class="tbl-wrap"><table class="receta">
@@ -194,12 +197,14 @@ export function iniciarCalculadora(s) {
 
     const tb = $("#f-items");
     if (!filas.length) tb.innerHTML = '<tr><td colspan="6" class="empty">Sin insumos todavía. Agregalos abajo.</td></tr>';
-    const ep = $("#f-esprep"); ep.checked = !!p.esPreparacion;
-    ep.onchange = () => saveProd(id, ep.checked ? { esPreparacion: true, rinde: p.rinde || 0, rindeUnidad: p.rindeUnidad || "g" } : { esPreparacion: false });
-    const ri = $("#f-rinde"); ri.value = p.rinde || "";
-    ri.onchange = () => saveProd(id, { rinde: Number(ri.value) || 0 });
-    const ru = $("#f-rinde-u"); ru.value = p.rindeUnidad || "g";
-    ru.onchange = () => saveProd(id, { rindeUnidad: ru.value });
+    $("#f-tipo").onclick = () => saveProd(id, p.esPreparacion ? { esPreparacion: false } : { esPreparacion: true, rinde: p.rinde || 0, rindeUnidad: p.rindeUnidad || "g" });
+    const ri = $("#f-rinde");
+    if (ri) {
+      ri.value = p.rinde || "";
+      ri.onchange = () => saveProd(id, { rinde: Number(ri.value) || 0 });
+      const ru = $("#f-rinde-u"); ru.value = p.rindeUnidad || "g";
+      ru.onchange = () => saveProd(id, { rindeUnidad: ru.value });
+    }
 
     filas.forEach(({ it, info, c }, idx) => {
       const tr = document.createElement("tr");
@@ -343,9 +348,12 @@ export function iniciarCalculadora(s) {
     const n = $("#newprod-name").value.trim();
     if (!n) return;
     const id = newId();
-    state.productos[id] = { nombre: n, items: [], margen: margenDefault(), precioVenta: null };
+    state.productos[id] = $("#newprod-prep").checked
+      ? { nombre: n, items: [], esPreparacion: true, rinde: 0, rindeUnidad: "g" }
+      : { nombre: n, items: [], margen: margenDefault(), precioVenta: null };
     state.sel = id;
     $("#newprod-name").value = "";
+    $("#newprod-prep").checked = false;
     render();
     store.set("productos", id, state.productos[id]);
   };

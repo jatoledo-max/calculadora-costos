@@ -80,7 +80,6 @@ label.f { display: grid; gap: 4px; font-size: 0.8rem; color: var(--muted); }
   table.receta th { white-space: normal; }
   table.receta input.n { width: 4.5em; }
   .ficha { padding: 14px; }
-  .prep-row label.chk input { width: 22px; height: 22px; }
 }
 .prod-layout > * { min-width: 0; }
 .plist { display: grid; gap: 6px; }
@@ -94,10 +93,21 @@ label.f { display: grid; gap: 4px; font-size: 0.8rem; color: var(--muted); }
 .pitem .mg { font-size: 0.74rem; color: var(--muted); text-align: right; }
 .grp { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; padding-block: 10px 2px; }
 .prep-row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 0.88rem; color: var(--muted); }
-.prep-row label.chk { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
-.prep-row label.chk input { flex: none; width: 1.25em; height: 1.25em; margin: 0.1em 0 0; accent-color: var(--accent); }
-.newprod { display: flex; gap: 6px; margin-top: 8px; }
-.newprod input { flex: 1; }
+/* Nuevo producto: mini sección propia debajo del listado */
+.newprod { display: grid; gap: 12px; margin-top: 16px; background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--accent); border-radius: 12px; padding: 14px; }
+.newprod-t { display: flex; align-items: center; gap: 8px; font-size: 1.05rem; color: var(--ink); }
+.newprod-t svg { color: var(--accent); flex: none; }
+.newprod input#newprod-name { font-size: 1rem; padding: 10px 12px; }
+.newprod button.btn { font-size: 0.95rem; padding: 10px 14px; }
+.newprod label.chk { display: flex; gap: 10px; align-items: flex-start; font-size: 0.85rem; color: var(--muted); cursor: pointer; }
+.newprod label.chk input { flex: none; width: 20px; height: 20px; margin: 0.1em 0 0; accent-color: var(--accent); }
+/* Preparaciones propias en bordó */
+.grp.prep { color: var(--wine); }
+.pitem.prep { border-color: color-mix(in srgb, var(--wine) 40%, var(--line)); background: color-mix(in srgb, var(--wine) 7%, var(--surface)); }
+.pitem.prep[aria-current="true"] { border-color: var(--wine); box-shadow: inset 4px 0 0 var(--wine); }
+.ficha-acc { display: flex; flex-wrap: wrap; gap: 4px; margin-left: auto; }
+.ficha-acc .btn.ghost { font-size: 0.82rem; }
+.tag.prep { background: color-mix(in srgb, var(--wine) 15%, var(--surface)); color: var(--wine); }
 .ficha-col { display: grid; gap: 18px; min-width: 0; }
 .ficha { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
 /* Secciones de Productos: Listado, Insumos y Costos, cada una con su título */

@@ -76,8 +76,10 @@
         <h2 class="sec-t">Listado de productos</h2>
         <div class="plist" id="plist"></div>
         <form class="newprod" id="newprod">
-          <input id="newprod-name" placeholder="Nuevo producto (ej: Lomito simple)" aria-label="Nombre del nuevo producto">
-          <button class="btn" type="submit">Agregar</button>
+          <h2 class="newprod-t"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="M12 7v10M7 12h10" stroke="var(--accent-ink)" stroke-width="2.4" stroke-linecap="round"/></svg>Nuevo producto</h2>
+          <label class="f">Nombre<input id="newprod-name" placeholder="Ej: Lomito simple" required></label>
+          <label class="chk"><input type="checkbox" id="newprod-prep"> <span>Es una preparación propia (se usa en otros productos, como la mayonesa casera)</span></label>
+          <button class="btn primary" type="submit">Agregar producto</button>
         </form>
       </aside>
       <div id="ficha" class="ficha-col"></div>
