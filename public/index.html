@@ -62,6 +62,7 @@
         <button id="tab-productos" role="tab" aria-selected="true" data-tab="productos">Productos</button>
         <button id="tab-insumos" role="tab" aria-selected="false" data-tab="insumos">Insumos</button>
         <button id="tab-gastos" role="tab" aria-selected="false" data-tab="gastos">Gastos fijos</button>
+        <button id="tab-delivery" role="tab" aria-selected="false" data-tab="delivery">Delivery</button>
         <button id="tab-negocio" role="tab" aria-selected="false" data-tab="negocio">Mi negocio</button>
       </nav>
       <button class="btn-tema" id="btn-tema" type="button"></button>
@@ -91,12 +92,13 @@
       <div>
         <h2>Insumos y precios de compra</h2>
         <p class="hint">Cargá cada insumo como lo comprás: por ejemplo "Pan de lomito, 12 unidades, $6.000" o "Lomo, 1 kg, $18.000". La app calcula el costo por gramo o por unidad solo.</p>
+        <p class="hint"><b>Rendimiento:</b> cuánto sirve de lo que comprás (de 1 kg de carne cruda, si después de limpiar quedan 800 g, es 80%). <b>Merma:</b> lo que se pierde al preparar, cocinar o por vencimiento (si al cocinar se tira un 5%, es 5%). Son cosas distintas: no cargues la misma pérdida en los dos. Marcá <b>Packaging</b> en cajas, bolsas y potes para verlos aparte en el costo.</p>
       </div>
     </div>
     <div class="card">
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>Insumo</th><th class="r">Compro</th><th>Unidad</th><th class="r">Pago ($)</th><th class="r">Costo de uso</th><th>Actualizado</th><th></th></tr></thead>
+          <thead><tr><th>Insumo</th><th class="r">Compro</th><th>Unidad</th><th class="r">Pago ($)</th><th class="r">Rendimiento %</th><th class="r">Merma %</th><th>Packaging</th><th class="r">Costo de uso</th><th>Actualizado</th><th></th></tr></thead>
           <tbody id="ins-body"></tbody>
         </table>
       </div>
@@ -105,6 +107,9 @@
         <label class="f">Cantidad<input id="ni-cant" class="n" type="number" step="any" min="0" value="1" required></label>
         <label class="f">Unidad<select id="ni-unidad"><option value="kg">kg</option><option value="l">litros</option><option value="u">unidades</option></select></label>
         <label class="f">Precio ($)<input id="ni-precio" class="n" type="number" step="any" min="0" required></label>
+        <label class="f">Rendimiento %<input id="ni-rend" class="n pct" type="number" step="any" min="1" max="100" value="100"></label>
+        <label class="f">Merma %<input id="ni-merma" class="n pct" type="number" step="any" min="0" value="0"></label>
+        <label class="chk f-chk"><input type="checkbox" id="ni-pack"> <span>Es packaging</span></label>
         <button class="btn primary" type="submit">Agregar insumo</button>
       </form>
     </div>
@@ -113,7 +118,7 @@
     <div class="ins-head">
       <div>
         <h2>Gastos fijos del mes</h2>
-        <p class="hint">Lo que pagás todos los meses vendas o no: alquiler, luz, gas, sueldos, delivery. Se reparte entre todo lo que vendés en el mes y se suma al costo de cada producto.</p>
+        <p class="hint">Lo que pagás todos los meses vendas o no: alquiler, luz, gas, sueldos. Se reparte entre todo lo que vendés en el mes y se suma al costo de cada producto. La nafta del delivery va en la pestaña Delivery, no acá, así no se cuenta dos veces.</p>
       </div>
     </div>
     <div class="precio" style="margin-top:12px">
@@ -129,7 +134,7 @@
         </table>
       </div>
       <div class="chips" id="gas-sugeridos" aria-label="Gastos comunes">
-        <button type="button">Alquiler</button><button type="button">Luz</button><button type="button">Gas</button><button type="button">Agua</button><button type="button">Sueldos y cargas sociales</button><button type="button">Delivery y logística</button><button type="button">Internet y teléfono</button><button type="button">Monotributo e impuestos</button><button type="button">Limpieza</button>
+        <button type="button">Alquiler</button><button type="button">Luz</button><button type="button">Gas</button><button type="button">Agua</button><button type="button">Sueldos y cargas sociales</button><button type="button">Internet y teléfono</button><button type="button">Monotributo e impuestos</button><button type="button">Limpieza</button>
       </div>
       <form class="addrow" id="newgas" style="margin-top:10px">
         <label class="f">Gasto<input id="ng-nombre" placeholder="Ej: Alquiler" required></label>
@@ -137,6 +142,23 @@
         <button class="btn primary" type="submit">Agregar gasto</button>
       </form>
     </div>
+  </section>
+
+  <section id="view-delivery" data-view="delivery" hidden>
+    <div class="ins-head">
+      <div>
+        <h2>Delivery</h2>
+        <p class="hint">La nafta se reparte entre los pedidos con delivery y se compara con lo que cobrás de envío. Va aparte del costo de los productos: así el precio del producto y el cobro del envío no se mezclan.</p>
+      </div>
+    </div>
+    <div class="precio" style="margin-top:12px">
+      <div class="kpi"><label class="k" for="del-nafta">Nafta por mes</label><span class="v">$ <input id="del-nafta" class="n" type="number" min="0" step="any" placeholder="Ej: 20000"></span></div>
+      <div class="kpi"><label class="k" for="del-pedidos">Pedidos con delivery por mes</label><span class="v"><input id="del-pedidos" class="n" type="number" min="0" step="1" placeholder="Ej: 100"></span><span class="note">Pedidos, no productos: un pedido puede traer varios.</span></div>
+      <div class="kpi hl"><span class="k">Nafta por pedido</span><span class="v" id="del-por-pedido">—</span></div>
+      <div class="kpi"><label class="k" for="del-cobro">Cobrás de envío por pedido</label><span class="v">$ <input id="del-cobro" class="n" type="number" min="0" step="any" placeholder="0"></span><span class="note">Lo que el cliente paga aparte del producto.</span></div>
+      <div class="kpi"><span class="k">Resultado del envío por pedido</span><span class="v num" id="del-resultado">—</span><span class="note" id="del-resultado-nota"></span></div>
+    </div>
+    <p class="hint" id="del-incluido" style="margin-top:12px"></p>
   </section>
 
   <section id="view-negocio" data-view="negocio" hidden>

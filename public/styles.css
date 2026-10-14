@@ -168,3 +168,8 @@ nav.tabs button { white-space: nowrap; }
 .btn-tema:hover { background: var(--accent); color: var(--accent-ink); }
 header.top .logo-id { margin-right: auto; }
 @media (max-width: 760px) { header.top .logo-id { flex: 1; min-width: 0; } header.top .btn-tema { order: 1; } header.top nav.tabs { order: 2; } }
+/* Insumos: rendimiento, merma y packaging */
+input.n.pct { width: 5em; }
+td.c { text-align: center; }
+td.c input[type="checkbox"], .f-chk input { width: 18px; height: 18px; accent-color: var(--accent); }
+.f-chk { display: flex; gap: 6px; align-items: center; font-size: 0.8rem; color: var(--muted); padding-bottom: 8px; cursor: pointer; }
