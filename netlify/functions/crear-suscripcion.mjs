@@ -9,6 +9,12 @@ export default async (req) => {
     const user = await usuarioDelToken(token);
     if (!user) return json(401, { error: "Iniciá sesión de nuevo." });
 
+    // Mercado Pago solo deja pagar a la cuenta con este mail, así que usamos el que escribió el cliente
+    // (puede ser distinto del mail con el que entra a la calculadora).
+    const pedido = await req.json().catch(() => ({}));
+    const mail = String(pedido.email || "").trim();
+    const payerEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail) ? mail : user.email;
+
     const negs = await supabaseAdmin("/rest/v1/negocios?select=id,nombre&owner_id=eq." + encodeURIComponent(user.id));
     if (!negs.length) return json(404, { error: "No encontramos tu negocio." });
 
@@ -18,7 +24,7 @@ export default async (req) => {
       body: JSON.stringify({
         reason: "CalculadoraDeGananciasMV - suscripción mensual",
         external_reference: negs[0].id,
-        payer_email: user.email,
+        payer_email: payerEmail,
         back_url: sitio + "/?pago=ok",
         status: "pending",
         auto_recurring: {

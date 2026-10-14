@@ -40,10 +40,13 @@
 <!-- Prueba vencida o suscripción caída -->
 <div id="pantalla-pago" class="centro" hidden>
   <div class="card auth">
-    <h2>Tu prueba gratis terminó</h2>
-    <p class="hint">Tus insumos y productos siguen guardados. Suscribite para seguir usándolos.</p>
+    <h2 id="pago-titulo">Tu prueba gratis terminó</h2>
+    <p class="hint" id="pago-texto">Tus insumos y productos siguen guardados. Suscribite para seguir usándolos.</p>
     <p class="precio-plan"><span class="num" id="plan-precio"></span> por mes</p>
+    <label class="f">Email de tu cuenta de Mercado Pago<input id="pago-email" type="email" autocomplete="email" required></label>
+    <p class="hint">Si en Mercado Pago usás otro mail, cambialo acá.</p>
     <button class="btn primary" type="button" id="btn-suscribir">Suscribirme con Mercado Pago</button>
+    <button class="btn ghost" type="button" id="btn-volver-pago" hidden>Volver</button>
     <button class="btn ghost" type="button" id="btn-salir-pago">Cerrar sesión</button>
     <p id="pago-msg" class="hint" role="status"></p>
   </div>

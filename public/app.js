@@ -149,10 +149,8 @@ async function arrancar() {
       return;
     }
     if (!activo(neg)) {
-      $("#plan-precio").textContent = CONFIG.PRECIO_MENSUAL_TEXTO;
+      abrirPago(session, false);
       if (new URLSearchParams(location.search).has("pago")) $("#pago-msg").textContent = "Si ya pagaste, estamos esperando la confirmación de Mercado Pago. Recargá en un minuto.";
-      $("#btn-suscribir").onclick = () => suscribir(session);
-      mostrar("pago");
       return;
     }
     aplicarMarca(neg);
@@ -163,17 +161,38 @@ async function arrancar() {
     if (neg.suscripcion_estado !== "authorized") {
       const b = document.createElement("button");
       b.className = "btn primary"; b.type = "button"; b.textContent = "Suscribirme ahora (" + CONFIG.PRECIO_MENSUAL_TEXTO + " por mes)";
-      b.onclick = () => suscribir(session);
+      b.onclick = () => abrirPago(session, true);
       $("#sub-estado").after(b);
     }
     mostrar("app");
     iniciarCalculadora(supabaseStore(supabase, neg.id));
   }
 
+  // Pantalla de pago: al vencer la prueba, o desde la app si el negocio quiere suscribirse antes.
+  function abrirPago(session, desdeApp) {
+    $("#plan-precio").textContent = CONFIG.PRECIO_MENSUAL_TEXTO;
+    $("#pago-titulo").textContent = desdeApp ? "Suscribirme" : "Tu prueba gratis terminó";
+    $("#pago-texto").textContent = desdeApp
+      ? "Seguís usando la prueba gratis hasta que termine; desde el pago, la suscripción se renueva sola cada mes."
+      : "Tus insumos y productos siguen guardados. Suscribite para seguir usándolos.";
+    if (!$("#pago-email").value) $("#pago-email").value = session.user.email || "";
+    $("#pago-msg").textContent = "";
+    $("#btn-volver-pago").hidden = !desdeApp;
+    $("#btn-volver-pago").onclick = () => mostrar("app");
+    $("#btn-suscribir").onclick = () => suscribir(session);
+    mostrar("pago");
+  }
+
   async function suscribir(session) {
+    const email = $("#pago-email").value.trim();
+    if (!$("#pago-email").checkValidity() || !email) { $("#pago-msg").textContent = "Escribí el email de tu cuenta de Mercado Pago."; return; }
     $("#pago-msg").textContent = "Abriendo Mercado Pago…";
     try {
-      const r = await fetch("/.netlify/functions/crear-suscripcion", { method: "POST", headers: { Authorization: "Bearer " + session.access_token } });
+      const r = await fetch("/.netlify/functions/crear-suscripcion", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + session.access_token, "content-type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
       const j = await r.json();
       if (!r.ok || !j.url) throw new Error(j.error || "error");
       location.href = j.url;
