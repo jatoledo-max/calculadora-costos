@@ -111,14 +111,18 @@ export function iniciarCalculadora(s) {
       const b = document.createElement("button");
       b.className = "pitem";
       b.setAttribute("aria-current", id === state.sel ? "true" : "false");
-      b.innerHTML = '<span class="nm"></span><span class="c"></span><span class="sub"></span>';
+      b.innerHTML = '<span class="nm"></span><span class="det"></span>';
       b.querySelector(".nm").textContent = p.nombre || "(sin nombre)";
       if (p.ejemplo) b.querySelector(".nm").insertAdjacentHTML("beforeend", ' <span class="tag ej">ejemplo</span>');
-      b.querySelector(".c").textContent = fmt(total);
-      const sub = b.querySelector(".sub");
-      if (p.esPreparacion) { b.querySelector(".c").textContent = ""; sub.textContent = porUnidadTxt(p, total); }
-      else if (pv) { sub.innerHTML = "Vendés a " + fmt(pv) + " · " + (hayFijos() ? "ganancia" : "margen") + ' <b class="' + clsMargen(m) + '">' + Math.round(m) + "%</b>"; }
-      else sub.textContent = "Sugerido " + fmt(precioSugerido(total, p.margen ?? margenDefault()));
+      const det = b.querySelector(".det");
+      const fila = (k, v) => '<span class="fila"><span class="k">' + k + '</span><span class="num">' + v + "</span></span>";
+      if (p.esPreparacion) det.innerHTML = fila("Costo:", porUnidadTxt(p, total));
+      else if (pv) {
+        const gan = pv - total;
+        det.innerHTML = fila("Precio actual:", fmt(pv)) + fila("Costo:", fmt(total)) +
+          '<span class="gan ' + clsMargen(m) + '"><span class="k">' + (gan >= 0 ? (hayFijos() ? "Ganancia neta" : "Ganancia") : "Pérdida") + '</span><span class="num">' + fmt(Math.abs(gan)) + "</span></span>" +
+          '<span class="mg">Margen ' + Math.round(m) + "%" + (hayFijos() ? "" : " (sin gastos fijos)") + "</span>";
+      } else det.innerHTML = fila("Costo:", fmt(total)) + fila("Sugerido:", fmt(precioSugerido(total, p.margen ?? margenDefault())));
       b.onclick = () => { state.sel = id; render(); };
       el.appendChild(b);
     });
@@ -138,21 +142,22 @@ export function iniciarCalculadora(s) {
     const mr = margenReal(costoTotal, pv);
 
     el.innerHTML = `
-      <div class="ficha">
+      <div class="ficha sec">
+        <h2 class="sec-t">Insumos</h2>
         <div class="ficha-head">
           <input class="title" id="f-nombre" aria-label="Nombre del producto">
           <button class="btn ghost" id="f-del" type="button">Borrar producto</button>
         </div>
         <div class="prep-row">
-          <label class="chk"><input type="checkbox" id="f-esprep"> Es una preparación propia (se usa en otros productos, como la mayonesa casera)</label>
+          <label class="chk"><input type="checkbox" id="f-esprep"> <span>Es una preparación propia (se usa en otros productos, como la mayonesa casera)</span></label>
           <span id="f-rinde-wrap" ${p.esPreparacion ? "" : "hidden"}>Rinde <input id="f-rinde" class="n" type="number" step="any" min="0" style="width:6em"> <select id="f-rinde-u"><option value="g">g</option><option value="ml">ml</option><option value="u">unidades</option></select></span>
         </div>
         <div>
           <h3>${p.esPreparacion ? "Receta (una tanda)" : "Receta (una porción)"}</h3>
-          <div class="tbl-wrap"><table>
-            <thead><tr><th>Insumo</th><th class="r">Cantidad</th><th></th><th class="r">Costo</th><th>Peso en el costo</th><th></th></tr></thead>
+          <div class="tbl-wrap"><table class="receta">
+            <thead><tr><th>Insumo</th><th class="r">Cantidad</th><th></th><th class="r">Costo</th><th class="peso">Peso en el costo</th><th></th></tr></thead>
             <tbody id="f-items"></tbody>
-            <tfoot><tr><td><b>Total insumos</b></td><td></td><td></td><td class="r num"><b>${fmt2(total)}</b></td><td></td><td></td></tr></tfoot>
+            <tfoot><tr><td><b>Total insumos</b></td><td></td><td></td><td class="r num"><b>${fmt2(total)}</b></td><td class="peso"></td><td></td></tr></tfoot>
           </table></div>
           <form class="addrow" id="f-add" style="margin-top:12px">
             <label class="f">Agregar insumo<select id="f-add-ins"></select></label>
@@ -160,18 +165,18 @@ export function iniciarCalculadora(s) {
             <button class="btn" type="submit">Agregar</button>
           </form>
         </div>
+      </div>
+      <div class="ficha sec">
+        <h2 class="sec-t">Costos</h2>
         ${p.esPreparacion ? `<div class="precio">
             <div class="kpi"><span class="k">Costo de la tanda</span><span class="v">${fmt(total)}</span></div>
             <div class="kpi hl"><span class="k">Costo de uso</span><span class="v" style="font-size:1.1rem">${porUnidadTxt(p, total)}</span><span class="note">Este valor se usa en los productos que la llevan</span></div>
           </div>` : ""}
-        <div ${p.esPreparacion ? "hidden" : ""}>
-          <h3 style="margin-bottom:10px">Precio</h3>
-          <div class="precio">
-            <div class="kpi"><span class="k">Costo total</span><span class="v">${fmt(costoTotal)}</span><span class="note">${fijo ? fmt(total) + " de insumos + " + fmt(fijo) + " de gastos fijos" : 'Solo insumos. <button type="button" class="linkbtn" id="f-ir-gastos">Cargá tus gastos fijos</button>'}</span></div>
-            <div class="kpi"><label class="k" for="f-margen">${fijo ? "Ganancia que querés" : "Margen que querés"}</label><span class="v"><input id="f-margen" class="n" type="number" min="0" max="95" step="1" style="width:4.5em"> %</span><span class="note">sobre el precio de venta</span></div>
-            <div class="kpi hl"><span class="k">Precio sugerido</span><span class="v">${fmt(sug)}</span><span class="note">redondeado a $100</span></div>
-            <div class="kpi"><label class="k" for="f-pv">Precio al que vendés hoy</label><span class="v">$ <input id="f-pv" class="n" type="number" min="0" step="any"></span><span class="note">${mr == null ? "Cargalo para ver cuánto ganás" : (fijo ? "Ganancia neta " : "Margen real ") + '<b class="' + clsMargen(mr) + '">' + Math.round(mr) + "%</b> · " + (pv - costoTotal >= 0 ? "ganás " + fmt(pv - costoTotal) : "perdés " + fmt(costoTotal - pv)) + " por unidad"}</span></div>
-          </div>
+        <div class="precio" ${p.esPreparacion ? "hidden" : ""}>
+          <div class="kpi"><span class="k">Costo total</span><span class="v">${fmt(costoTotal)}</span><span class="note">${fijo ? fmt(total) + " de insumos + " + fmt(fijo) + " de gastos fijos" : 'Solo insumos. <button type="button" class="linkbtn" id="f-ir-gastos">Cargá tus gastos fijos</button>'}</span></div>
+          <div class="kpi"><label class="k" for="f-margen">${fijo ? "Ganancia que querés" : "Margen que querés"}</label><span class="v"><input id="f-margen" class="n" type="number" min="0" max="95" step="1" style="width:4.5em"> %</span><span class="note">sobre el precio de venta</span></div>
+          <div class="kpi hl"><span class="k">Precio sugerido</span><span class="v">${fmt(sug)}</span><span class="note">redondeado a $100</span></div>
+          <div class="kpi"><label class="k" for="f-pv">Precio al que vendés hoy</label><span class="v">$ <input id="f-pv" class="n" type="number" min="0" step="any"></span><span class="note">${mr == null ? "Cargalo para ver cuánto ganás" : (fijo ? "Ganancia neta " : "Margen real ") + '<b class="' + clsMargen(mr) + '">' + Math.round(mr) + "%</b> · " + (pv - costoTotal >= 0 ? "ganás " + fmt(pv - costoTotal) : "perdés " + fmt(costoTotal - pv)) + " por unidad"}</span></div>
         </div>
         <div class="ticket" ${p.esPreparacion ? "hidden" : ""}>${fijo
           ? `Fórmula: precio = costo total ÷ (1 − ganancia). Con ${margen}% de ganancia, de cada ${fmt(sug)} quedan ${fmt(sug - costoTotal)} de ganancia limpia, después de pagar insumos y gastos fijos.`
@@ -199,11 +204,12 @@ export function iniciarCalculadora(s) {
     filas.forEach(({ it, info, c }, idx) => {
       const tr = document.createElement("tr");
       const pct = total ? (c / total) * 100 : 0;
-      tr.innerHTML = `<td></td><td class="r"><input class="n" type="number" step="any" min="0"></td><td class="u"></td><td class="r num"></td><td><div class="bar"><i style="width:${pct.toFixed(1)}%"></i></div></td><td><button class="btn ghost" type="button" aria-label="Quitar">✕</button></td>`;
+      tr.innerHTML = `<td></td><td class="r"><input class="n" type="number" step="any" min="0"></td><td class="u"></td><td class="r num"></td><td class="peso"><div class="bar"><i style="width:${pct.toFixed(1)}%"></i></div></td><td><button class="btn ghost" type="button" aria-label="Quitar">✕</button></td>`;
       tr.cells[0].textContent = info.nombre;
       if (info.prep) tr.cells[0].insertAdjacentHTML("beforeend", ' <span class="tag">preparación</span>');
       tr.cells[2].textContent = info.unidad;
-      tr.cells[3].textContent = fmt2(c) + "  " + pct.toFixed(0) + "%";
+      tr.cells[3].innerHTML = '<span></span><span class="peso"> ' + pct.toFixed(0) + "%</span>";
+      tr.cells[3].firstChild.textContent = fmt2(c);
       const inp = tr.querySelector("input");
       inp.value = it.cantidad;
       inp.id = "f-cant-" + idx;

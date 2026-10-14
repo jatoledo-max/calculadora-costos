@@ -71,20 +71,38 @@ label.f { display: grid; gap: 4px; font-size: 0.8rem; color: var(--muted); }
 
 /* Productos */
 .prod-layout { display: grid; grid-template-columns: 280px 1fr; gap: 24px; margin-top: 18px; align-items: start; }
-@media (max-width: 760px) { .prod-layout { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 760px) {
+  .prod-layout { grid-template-columns: minmax(0, 1fr); }
+  /* En el celular la receta entra entera, sin deslizar de costado */
+  table.receta .peso { display: none; }
+  table.receta { font-size: 0.85rem; }
+  table.receta th, table.receta td { padding: 6px 4px; }
+  table.receta th { white-space: normal; }
+  table.receta input.n { width: 4.5em; }
+  .ficha { padding: 14px; }
+  .prep-row label.chk input { width: 22px; height: 22px; }
+}
 .prod-layout > * { min-width: 0; }
 .plist { display: grid; gap: 6px; }
-.pitem { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; text-align: left; width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 10px 12px; cursor: pointer; color: var(--ink); font: inherit; }
+.pitem { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; text-align: left; width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 10px 12px; cursor: pointer; color: var(--ink); font: inherit; }
 .pitem[aria-current="true"] { border-color: var(--accent); box-shadow: inset 4px 0 0 var(--accent); }
 .pitem .nm { font-weight: 600; }
-.pitem .c { font-family: var(--f-num); font-size: 0.85rem; }
-.pitem .sub { grid-column: 1 / -1; font-size: 0.78rem; color: var(--muted); }
+.pitem .det { display: grid; gap: 1px; font-size: 0.82rem; }
+.pitem .fila, .pitem .gan { display: flex; justify-content: space-between; gap: 8px; }
+.pitem .fila .k { color: var(--muted); }
+.pitem .gan { font-weight: 600; font-size: 0.95rem; margin-top: 3px; }
+.pitem .mg { font-size: 0.74rem; color: var(--muted); text-align: right; }
 .grp { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; padding-block: 10px 2px; }
 .prep-row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 0.88rem; color: var(--muted); }
-.prep-row label.chk { display: flex; gap: 8px; align-items: center; }
+.prep-row label.chk { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.prep-row label.chk input { flex: none; width: 1.25em; height: 1.25em; margin: 0.1em 0 0; accent-color: var(--accent); }
 .newprod { display: flex; gap: 6px; margin-top: 8px; }
 .newprod input { flex: 1; }
+.ficha-col { display: grid; gap: 18px; min-width: 0; }
 .ficha { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+/* Secciones de Productos: Listado, Insumos y Costos, cada una con su título */
+.sec-t { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent-text); padding-bottom: 8px; border-bottom: 2px solid var(--accent); margin-bottom: 4px; }
+aside.sec .sec-t { margin-bottom: 10px; }
 .ficha-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
 .ficha-head input.title { font: 700 1.25rem var(--f-display); border-color: transparent; padding-inline: 4px; flex: 1; min-width: 180px; }
 .ficha-head input.title:hover { border-color: var(--line); }
