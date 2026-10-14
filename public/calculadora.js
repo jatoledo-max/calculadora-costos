@@ -148,10 +148,6 @@ export function iniciarCalculadora(s) {
           <input class="title" id="f-nombre" aria-label="Nombre del producto">
           <button class="btn ghost" id="f-del" type="button">Borrar producto</button>
         </div>
-        <div class="prep-row">
-          <label class="chk"><input type="checkbox" id="f-esprep"> <span>Es una preparación propia (se usa en otros productos, como la mayonesa casera)</span></label>
-          <span id="f-rinde-wrap" ${p.esPreparacion ? "" : "hidden"}>Rinde <input id="f-rinde" class="n" type="number" step="any" min="0" style="width:6em"> <select id="f-rinde-u"><option value="g">g</option><option value="ml">ml</option><option value="u">unidades</option></select></span>
-        </div>
         ${p.esPreparacion ? `<div class="precio">
             <div class="kpi"><span class="k">Costo de la tanda</span><span class="v">${fmt(total)}</span></div>
             <div class="kpi hl"><span class="k">Costo de uso</span><span class="v" style="font-size:1.1rem">${porUnidadTxt(p, total)}</span><span class="note">Este valor se usa en los productos que la llevan</span></div>
@@ -168,6 +164,10 @@ export function iniciarCalculadora(s) {
       </div>
       <div class="ficha sec">
         <h2 class="sec-t">Insumos</h2>
+        <div class="prep-row">
+          <label class="chk"><input type="checkbox" id="f-esprep"> <span>Es una preparación propia (se usa en otros productos, como la mayonesa casera)</span></label>
+          <span id="f-rinde-wrap" ${p.esPreparacion ? "" : "hidden"}>Rinde <input id="f-rinde" class="n" type="number" step="any" min="0" style="width:6em"> <select id="f-rinde-u"><option value="g">g</option><option value="ml">ml</option><option value="u">unidades</option></select></span>
+        </div>
         <div>
           <h3>${p.esPreparacion ? "Receta (una tanda)" : "Receta (una porción)"}</h3>
           <div class="tbl-wrap"><table class="receta">
@@ -367,6 +367,14 @@ export function iniciarCalculadora(s) {
       try { localStorage.setItem("costos-tab", state.tab); } catch (e) {}
     };
   });
+  // Botón de modo claro / oscuro: se guarda la elección; sin elección sigue al sistema.
+  const btnTema = $("#btn-tema");
+  if (btnTema) {
+    const oscuro = () => { const t = document.documentElement.dataset.theme; return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches; };
+    const pintar = () => { const o = oscuro(); btnTema.textContent = o ? "☀" : "☾"; btnTema.setAttribute("aria-label", o ? "Pasar a modo claro" : "Pasar a modo oscuro"); btnTema.title = btnTema.getAttribute("aria-label"); };
+    btnTema.onclick = () => { const t = oscuro() ? "light" : "dark"; document.documentElement.dataset.theme = t; try { localStorage.setItem("costos-tema", t); } catch (e) {} pintar(); };
+    pintar();
+  }
   try { const t = localStorage.getItem("costos-tab"); const b = t && document.querySelector('nav.tabs button[data-tab="' + t + '"]'); if (b) b.click(); } catch (e) {}
 
   // ---------- Arranque ----------

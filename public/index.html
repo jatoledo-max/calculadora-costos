@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;700&family=Public+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
 <link rel="stylesheet" href="styles.css">
+<script>try { const t = localStorage.getItem("costos-tema"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
 </head>
 <body>
 
@@ -63,6 +64,7 @@
         <button id="tab-gastos" role="tab" aria-selected="false" data-tab="gastos">Gastos fijos</button>
         <button id="tab-negocio" role="tab" aria-selected="false" data-tab="negocio">Mi negocio</button>
       </nav>
+      <button class="btn-tema" id="btn-tema" type="button"></button>
     </header>
   </div>
   <div class="wrap">

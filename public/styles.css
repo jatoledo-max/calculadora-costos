@@ -152,4 +152,9 @@ body { margin: 0; }
 .kpi { align-content: start; }
 nav.tabs { overflow-x: auto; max-width: 100%; }
 nav.tabs button { white-space: nowrap; }
-@media (max-width: 480px) { nav.tabs button { padding: 8px 10px; font-size: 0.85rem; } }
+@media (max-width: 480px) { nav.tabs { width: 100%; } nav.tabs button { flex: 1; padding: 8px 6px; font-size: 0.8rem; } }
+/* Botón de modo claro / oscuro: al lado de las pestañas; en el celular, al lado del nombre */
+.btn-tema { flex: none; width: 40px; height: 40px; border-radius: 10px; border: 0; background: #2a2725; color: var(--brand-ink); font-size: 1.15rem; line-height: 1; cursor: pointer; }
+.btn-tema:hover { background: var(--accent); color: var(--accent-ink); }
+header.top .logo-id { margin-right: auto; }
+@media (max-width: 760px) { header.top .logo-id { flex: 1; min-width: 0; } header.top .btn-tema { order: 1; } header.top nav.tabs { order: 2; } }
