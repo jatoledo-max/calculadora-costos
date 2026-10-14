@@ -143,7 +143,7 @@ export function iniciarCalculadora(s) {
 
     el.innerHTML = `
       <div class="ficha sec">
-        <h2 class="sec-t">Insumos</h2>
+        <h2 class="sec-t">Costos</h2>
         <div class="ficha-head">
           <input class="title" id="f-nombre" aria-label="Nombre del producto">
           <button class="btn ghost" id="f-del" type="button">Borrar producto</button>
@@ -152,22 +152,6 @@ export function iniciarCalculadora(s) {
           <label class="chk"><input type="checkbox" id="f-esprep"> <span>Es una preparación propia (se usa en otros productos, como la mayonesa casera)</span></label>
           <span id="f-rinde-wrap" ${p.esPreparacion ? "" : "hidden"}>Rinde <input id="f-rinde" class="n" type="number" step="any" min="0" style="width:6em"> <select id="f-rinde-u"><option value="g">g</option><option value="ml">ml</option><option value="u">unidades</option></select></span>
         </div>
-        <div>
-          <h3>${p.esPreparacion ? "Receta (una tanda)" : "Receta (una porción)"}</h3>
-          <div class="tbl-wrap"><table class="receta">
-            <thead><tr><th>Insumo</th><th class="r">Cantidad</th><th></th><th class="r">Costo</th><th class="peso">Peso en el costo</th><th></th></tr></thead>
-            <tbody id="f-items"></tbody>
-            <tfoot><tr><td><b>Total insumos</b></td><td></td><td></td><td class="r num"><b>${fmt2(total)}</b></td><td class="peso"></td><td></td></tr></tfoot>
-          </table></div>
-          <form class="addrow" id="f-add" style="margin-top:12px">
-            <label class="f">Agregar insumo<select id="f-add-ins"></select></label>
-            <label class="f">Cantidad <span id="f-add-u"></span><input id="f-add-cant" class="n" type="number" step="any" min="0" required></label>
-            <button class="btn" type="submit">Agregar</button>
-          </form>
-        </div>
-      </div>
-      <div class="ficha sec">
-        <h2 class="sec-t">Costos</h2>
         ${p.esPreparacion ? `<div class="precio">
             <div class="kpi"><span class="k">Costo de la tanda</span><span class="v">${fmt(total)}</span></div>
             <div class="kpi hl"><span class="k">Costo de uso</span><span class="v" style="font-size:1.1rem">${porUnidadTxt(p, total)}</span><span class="note">Este valor se usa en los productos que la llevan</span></div>
@@ -181,6 +165,22 @@ export function iniciarCalculadora(s) {
         <div class="ticket" ${p.esPreparacion ? "hidden" : ""}>${fijo
           ? `Fórmula: precio = costo total ÷ (1 − ganancia). Con ${margen}% de ganancia, de cada ${fmt(sug)} quedan ${fmt(sug - costoTotal)} de ganancia limpia, después de pagar insumos y gastos fijos.`
           : `Fórmula: precio = costo ÷ (1 − margen). Con ${margen}% de margen, de cada ${fmt(sug)} quedan ${fmt(sug - total)} para gastos fijos y ganancia.`}</div>
+      </div>
+      <div class="ficha sec">
+        <h2 class="sec-t">Insumos</h2>
+        <div>
+          <h3>${p.esPreparacion ? "Receta (una tanda)" : "Receta (una porción)"}</h3>
+          <div class="tbl-wrap"><table class="receta">
+            <thead><tr><th>Insumo</th><th class="r">Cantidad</th><th></th><th class="r">Costo</th><th class="peso">Peso en el costo</th><th></th></tr></thead>
+            <tbody id="f-items"></tbody>
+            <tfoot><tr><td><b>Total insumos</b></td><td></td><td></td><td class="r num"><b>${fmt2(total)}</b></td><td class="peso"></td><td></td></tr></tfoot>
+          </table></div>
+          <form class="addrow" id="f-add" style="margin-top:12px">
+            <label class="f">Agregar insumo<select id="f-add-ins"></select></label>
+            <label class="f">Cantidad <span id="f-add-u"></span><input id="f-add-cant" class="n" type="number" step="any" min="0" required></label>
+            <button class="btn" type="submit">Agregar</button>
+          </form>
+        </div>
       </div>`;
 
     const nombre = $("#f-nombre");
