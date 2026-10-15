@@ -108,7 +108,7 @@
         <label class="f">Unidad<select id="ni-unidad"><option value="kg">kg</option><option value="l">litros</option><option value="u">unidades</option></select></label>
         <label class="f">Precio ($)<input id="ni-precio" class="n" type="number" step="any" min="0" required></label>
         <label class="f">Rendimiento %<input id="ni-rend" class="n pct" type="number" step="any" min="1" max="100" value="100"></label>
-        <label class="f">Merma %<input id="ni-merma" class="n pct" type="number" step="any" min="0" value="0"></label>
+        <label class="f">Merma %<input id="ni-merma" class="n pct" type="number" step="any" min="0" max="95" value="0"></label>
         <label class="chk f-chk"><input type="checkbox" id="ni-pack"> <span>Es packaging</span></label>
         <button class="btn primary" type="submit">Agregar insumo</button>
       </form>
@@ -118,7 +118,7 @@
     <div class="ins-head">
       <div>
         <h2>Gastos fijos del mes</h2>
-        <p class="hint">Lo que pagás todos los meses vendas o no: alquiler, luz, gas, sueldos. Se reparte entre todo lo que vendés en el mes y se suma al costo de cada producto. La nafta del delivery va en la pestaña Delivery, no acá, así no se cuenta dos veces.</p>
+        <p class="hint">Lo que pagás todos los meses vendas o no: alquiler, luz, gas, sueldos. Se reparte en partes iguales entre todo lo que vendés en el mes: un producto barato y uno caro suman el mismo monto. La nafta del delivery va en la pestaña Delivery, no acá, así no se cuenta dos veces.</p>
       </div>
     </div>
     <div class="precio" style="margin-top:12px">

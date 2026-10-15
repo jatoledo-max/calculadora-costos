@@ -28,36 +28,45 @@ export function iniciarCalculadora(s) {
   // Rendimiento: cuánto producto útil sale de lo comprado (100% si no se cargó).
   // Merma: lo que se pierde al preparar, cocinar o por vencimiento (0% si no se cargó).
   const rendimiento = (ins) => (Number(ins.rendimiento) > 0 ? Math.min(Number(ins.rendimiento), 100) : 100);
-  const merma = (ins) => Math.max(Number(ins.merma) || 0, 0);
+  const merma = (ins) => Math.min(Math.max(Number(ins.merma) || 0, 0), 95);
   function costoUso(ins) {
-    // costo por g / ml / u útil = (precio de compra / rendimiento) × (1 + merma)
+    // costo por g / ml / u útil = (precio de compra / rendimiento) / (1 − merma):
+    // si se pierde un 30%, para usar 70 g hay que preparar 100 g.
     if (!ins || !ins.cantidad || !ins.precio) return 0;
     const bruto = ins.precio / (ins.cantidad * UNID[ins.unidad || "u"].f);
-    return (bruto / (rendimiento(ins) / 100)) * (1 + merma(ins) / 100);
+    return bruto / (rendimiento(ins) / 100) / (1 - merma(ins) / 100);
   }
   // Un renglón de receta apunta a un insumo ({insumo}) o a una preparación propia ({prep}).
   function itemInfo(it, depth) {
     if (it.prep) {
       const pr = state.productos[it.prep];
-      if (!pr) return { nombre: "(preparación borrada)", unidad: "", cu: 0 };
-      const cu = pr.rinde > 0 && depth < 5 ? costoProducto(pr, depth + 1).total / pr.rinde : 0;
-      return { nombre: pr.nombre, unidad: pr.rindeUnidad || "g", cu, prep: true };
+      if (!pr) return { nombre: "(preparación borrada)", unidad: "", cu: 0, faltas: ["una preparación de la receta fue borrada"] };
+      const sub = depth < 5 ? costoProducto(pr, depth + 1) : { total: 0, faltas: [] };
+      const cu = pr.rinde > 0 ? sub.total / pr.rinde : 0;
+      const faltas = sub.faltas.slice();
+      if (!(pr.rinde > 0)) faltas.push("cuánto rinde la preparación " + pr.nombre);
+      return { nombre: pr.nombre, unidad: pr.rindeUnidad || "g", cu, prep: true, faltas };
     }
     const ins = state.insumos[it.insumo];
-    if (!ins) return { nombre: "(insumo borrado)", unidad: "", cu: 0 };
-    return { nombre: ins.nombre, unidad: UNID[ins.unidad].base, cu: costoUso(ins), packaging: !!ins.packaging };
+    if (!ins) return { nombre: "(insumo borrado)", unidad: "", cu: 0, faltas: ["un insumo de la receta fue borrado"] };
+    const faltas = !ins.cantidad || !ins.precio ? ["la cantidad o el precio de compra de " + ins.nombre + " (pestaña Insumos)"] : [];
+    return { nombre: ins.nombre, unidad: UNID[ins.unidad].base, cu: costoUso(ins), packaging: !!ins.packaging, faltas };
   }
   function costoProducto(p, depth) {
     depth = depth || 0;
+    // faltas: datos sin cargar que hacen que el costo dé más bajo que el real.
     let total = 0, packaging = 0;
+    const faltas = [];
     const filas = (p.items || []).map((it) => {
       const info = itemInfo(it, depth);
       const c = info.cu * (Number(it.cantidad) || 0);
       total += c;
       if (info.packaging) packaging += c;
+      info.faltas.forEach((f) => { if (!faltas.includes(f)) faltas.push(f); });
+      if (!(Number(it.cantidad) > 0)) faltas.push("la cantidad de " + info.nombre + " en la receta");
       return { it, info, c };
     });
-    return { total, packaging, filas };
+    return { total, packaging, filas, faltas };
   }
   const porUnidadTxt = (p, total) => {
     const u = p.rindeUnidad || "g";
@@ -119,7 +128,7 @@ export function iniciarCalculadora(s) {
         h.textContent = "Preparaciones propias";
         el.appendChild(h);
       }
-      const { total: tIns } = costoProducto(p);
+      const { total: tIns, faltas: fl } = costoProducto(p);
       const total = p.esPreparacion ? tIns : tIns + fijoPorUnidad();
       const pv = Number(p.precioVenta) || 0;
       const env = envioIncl(p);
@@ -130,6 +139,7 @@ export function iniciarCalculadora(s) {
       b.innerHTML = '<span class="nm"></span><span class="det"></span>';
       b.querySelector(".nm").textContent = p.nombre || "(sin nombre)";
       if (p.ejemplo) b.querySelector(".nm").insertAdjacentHTML("beforeend", ' <span class="tag ej">ejemplo</span>');
+      if (fl.length) b.querySelector(".nm").insertAdjacentHTML("beforeend", ' <span class="tag falta">costo incompleto</span>');
       const det = b.querySelector(".det");
       const fila = (k, v) => '<span class="fila"><span class="k">' + k + '</span><span class="num">' + v + "</span></span>";
       if (p.esPreparacion) det.innerHTML = fila("Costo:", porUnidadTxt(p, total));
@@ -149,7 +159,7 @@ export function iniciarCalculadora(s) {
     const p = state.productos[state.sel];
     if (!p) { el.innerHTML = ""; return; }
     const id = state.sel;
-    const { total, packaging, filas } = costoProducto(p);
+    const { total, packaging, filas, faltas } = costoProducto(p);
     const fijo = fijoPorUnidad();
     const costoTotal = total + fijo;
     const margen = p.margen ?? margenDefault();
@@ -173,6 +183,7 @@ export function iniciarCalculadora(s) {
             <button class="btn ghost" id="f-del" type="button">Borrar producto</button>
           </span>
         </div>
+        ${faltas.length ? `<div class="aviso-falta" role="alert"><b>Costo incompleto:</b> el costo da más bajo que el real porque falta cargar ${faltas.map((f) => "<span></span>").join(", ").replace(/, ([^,]*)$/, " y $1")}.</div>` : ""}
         ${p.esPreparacion ? `<div class="precio">
             <div class="kpi"><span class="k">Costo de la tanda</span><span class="v">${fmt(total)}</span></div>
             <div class="kpi hl"><span class="k">Costo de uso</span><span class="v" style="font-size:1.1rem">${porUnidadTxt(p, total)}</span><span class="note">Este valor se usa en los productos que la llevan</span></div>
@@ -208,6 +219,7 @@ export function iniciarCalculadora(s) {
         </div>
       </div>`;
 
+    el.querySelectorAll(".aviso-falta span").forEach((sp, n) => { sp.textContent = faltas[n]; });
     const nombre = $("#f-nombre");
     nombre.value = p.nombre || "";
     nombre.onchange = () => saveProd(id, { nombre: nombre.value.trim() || p.nombre });
@@ -292,7 +304,7 @@ export function iniciarCalculadora(s) {
     if (!ins.length) { tb.innerHTML = '<tr><td colspan="10" class="empty">Todavía no cargaste insumos.</td></tr>'; return; }
     ins.forEach(([id, i]) => {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td><input class="nm" style="width:100%;min-width:140px"></td><td class="r"><input class="n cant" type="number" step="any" min="0"></td><td><select class="un"><option value="kg">kg</option><option value="l">litros</option><option value="u">unidades</option></select></td><td class="r"><input class="n pr" type="number" step="any" min="0"></td><td class="r"><input class="n pct rend" type="number" step="any" min="1" max="100"></td><td class="r"><input class="n pct mer" type="number" step="any" min="0"></td><td class="c"><input class="pk" type="checkbox"></td><td class="r num cu"></td><td class="upd" style="font-size:.8rem;color:var(--muted);white-space:nowrap"></td><td><button class="btn ghost" type="button" aria-label="Borrar insumo">✕</button></td>`;
+      tr.innerHTML = `<td><input class="nm" style="width:100%;min-width:140px"></td><td class="r"><input class="n cant" type="number" step="any" min="0"></td><td><select class="un"><option value="kg">kg</option><option value="l">litros</option><option value="u">unidades</option></select></td><td class="r"><input class="n pr" type="number" step="any" min="0"></td><td class="r"><input class="n pct rend" type="number" step="any" min="1" max="100"></td><td class="r"><input class="n pct mer" type="number" step="any" min="0" max="95"></td><td class="c"><input class="pk" type="checkbox"></td><td class="r num cu"></td><td class="upd" style="font-size:.8rem;color:var(--muted);white-space:nowrap"></td><td><button class="btn ghost" type="button" aria-label="Borrar insumo">✕</button></td>`;
       const nm = tr.querySelector(".nm"), ca = tr.querySelector(".cant"), un = tr.querySelector(".un"), pr = tr.querySelector(".pr");
       const re = tr.querySelector(".rend"), me = tr.querySelector(".mer"), pk = tr.querySelector(".pk");
       nm.id = "ins-nm-" + id; ca.id = "ins-ca-" + id; un.id = "ins-un-" + id; pr.id = "ins-pr-" + id;
@@ -348,7 +360,7 @@ export function iniciarCalculadora(s) {
     if (document.activeElement !== um) um.value = unidadesMes() || "";
     $("#gas-total").textContent = fmt(totalFijos());
     $("#gas-por-unidad").textContent = unidadesMes() ? fmt(fijoPorUnidad()) : "—";
-    $("#gas-nota").textContent = unidadesMes() ? "Esto se suma al costo de cada producto que vendés." : "Cargá cuántos productos vendés por mes para repartir los gastos.";
+    $("#gas-nota").textContent = unidadesMes() ? "Se suma igual al costo de cada producto que vendés, sea caro o barato." : "Cargá cuántos productos vendés por mes para repartir los gastos.";
   }
 
   function renderDelivery() {

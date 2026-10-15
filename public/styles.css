@@ -173,3 +173,6 @@ input.n.pct { width: 5em; }
 td.c { text-align: center; }
 td.c input[type="checkbox"], .f-chk input { width: 18px; height: 18px; accent-color: var(--accent); }
 .f-chk { display: flex; gap: 6px; align-items: center; font-size: 0.8rem; color: var(--muted); padding-bottom: 8px; cursor: pointer; }
+/* Aviso de costo incompleto */
+.aviso-falta { background: color-mix(in srgb, var(--bad) 10%, var(--surface)); border: 1px solid var(--bad); border-radius: 10px; padding: 10px 12px; font-size: 0.88rem; }
+.tag.falta { background: color-mix(in srgb, var(--bad) 15%, var(--surface)); color: var(--bad); }
