@@ -176,3 +176,7 @@ td.c input[type="checkbox"], .f-chk input { width: 18px; height: 18px; accent-co
 /* Aviso de costo incompleto */
 .aviso-falta { background: color-mix(in srgb, var(--bad) 10%, var(--surface)); border: 1px solid var(--bad); border-radius: 10px; padding: 10px 12px; font-size: 0.88rem; }
 .tag.falta { background: color-mix(in srgb, var(--bad) 15%, var(--surface)); color: var(--bad); }
+/* Botón de borrar fijo a la derecha de la tabla, así "¿Borrar?" siempre se ve aunque la tabla se deslice */
+th.acc, td.acc { position: sticky; right: 0; background: var(--surface); box-shadow: -6px 0 6px -6px rgba(0,0,0,.25); }
+td.acc .btn.ghost { white-space: nowrap; }
+td.acc .btn.ghost[data-armed] { color: var(--bad); font-weight: 700; }

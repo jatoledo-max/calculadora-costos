@@ -316,7 +316,7 @@ export function iniciarCalculadora(s) {
     if (!ins.length) { tb.innerHTML = '<tr><td colspan="10" class="empty">Todavía no cargaste insumos.</td></tr>'; return; }
     ins.forEach(([id, i]) => {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td><input class="nm" style="width:100%;min-width:140px"></td><td class="r"><input class="n cant" type="number" step="any" min="0"></td><td><select class="un"><option value="kg">kg</option><option value="l">litros</option><option value="u">unidades</option></select></td><td class="r"><input class="n pr" type="number" step="any" min="0"></td><td class="r"><input class="n pct rend" type="number" step="any" min="1" max="100"></td><td class="r"><input class="n pct mer" type="number" step="any" min="0" max="95"></td><td class="c"><input class="pk" type="checkbox"></td><td class="r num cu"></td><td class="upd" style="font-size:.8rem;color:var(--muted);white-space:nowrap"></td><td><button class="btn ghost" type="button" aria-label="Borrar insumo">✕</button></td>`;
+      tr.innerHTML = `<td><input class="nm" style="width:100%;min-width:140px"></td><td class="r"><input class="n cant" type="number" step="any" min="0"></td><td><select class="un"><option value="kg">kg</option><option value="l">litros</option><option value="u">unidades</option></select></td><td class="r"><input class="n pr" type="number" step="any" min="0"></td><td class="r"><input class="n pct rend" type="number" step="any" min="1" max="100"></td><td class="r"><input class="n pct mer" type="number" step="any" min="0" max="95"></td><td class="c"><input class="pk" type="checkbox"></td><td class="r num cu"></td><td class="upd" style="font-size:.8rem;color:var(--muted);white-space:nowrap"></td><td class="acc"><button class="btn ghost" type="button" aria-label="Borrar insumo">✕</button></td>`;
       const nm = tr.querySelector(".nm"), ca = tr.querySelector(".cant"), un = tr.querySelector(".un"), pr = tr.querySelector(".pr");
       const re = tr.querySelector(".rend"), me = tr.querySelector(".mer"), pk = tr.querySelector(".pk");
       nm.id = "ins-nm-" + id; ca.id = "ins-ca-" + id; un.id = "ins-un-" + id; pr.id = "ins-pr-" + id;
@@ -343,7 +343,7 @@ export function iniciarCalculadora(s) {
       const del = tr.querySelector("button");
       del.onclick = () => {
         if (del.dataset.armed) store.del("insumos", id);
-        else { del.dataset.armed = "1"; del.textContent = "¿Borrar?"; setTimeout(() => { if (del.isConnected) { delete del.dataset.armed; del.textContent = "✕"; } }, 3000); }
+        else { del.dataset.armed = "1"; del.textContent = "¿Borrar?"; del.scrollIntoView({ block: "nearest", inline: "nearest" }); setTimeout(() => { if (del.isConnected) { delete del.dataset.armed; del.textContent = "✕"; } }, 3000); }
       };
       tb.appendChild(tr);
     });
@@ -357,7 +357,7 @@ export function iniciarCalculadora(s) {
     if (!gs.length) tb.innerHTML = '<tr><td colspan="3" class="empty">Todavía no cargaste gastos fijos.</td></tr>';
     gs.forEach(([id, g]) => {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td><input class="nm" style="width:100%;min-width:140px"></td><td class="r"><input class="n mo" type="number" step="any" min="0"></td><td><button class="btn ghost" type="button" aria-label="Borrar gasto">✕</button></td>`;
+      tr.innerHTML = `<td><input class="nm" style="width:100%;min-width:140px"></td><td class="r"><input class="n mo" type="number" step="any" min="0"></td><td class="acc"><button class="btn ghost" type="button" aria-label="Borrar gasto">✕</button></td>`;
       const nm = tr.querySelector(".nm"), mo = tr.querySelector(".mo");
       nm.id = "gas-nm-" + id; mo.id = "gas-mo-" + id;
       nm.value = g.nombre; mo.value = g.monto;
@@ -366,7 +366,7 @@ export function iniciarCalculadora(s) {
       const del = tr.querySelector("button");
       del.onclick = () => {
         if (del.dataset.armed) store.del("gastos", id);
-        else { del.dataset.armed = "1"; del.textContent = "¿Borrar?"; setTimeout(() => { if (del.isConnected) { delete del.dataset.armed; del.textContent = "✕"; } }, 3000); }
+        else { del.dataset.armed = "1"; del.textContent = "¿Borrar?"; del.scrollIntoView({ block: "nearest", inline: "nearest" }); setTimeout(() => { if (del.isConnected) { delete del.dataset.armed; del.textContent = "✕"; } }, 3000); }
       };
       tb.appendChild(tr);
     });
