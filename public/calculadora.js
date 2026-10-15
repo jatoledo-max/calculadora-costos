@@ -23,6 +23,15 @@ export function iniciarCalculadora(s) {
       : "Tus datos se guardan solos.";
   }
   const newId = () => Math.random().toString(36).slice(2, 10);
+  // Cantidades en 0 o vacías dan costos falsos: se rechazan con un aviso en el mismo campo.
+  const positivo = (v) => v !== "" && Number(v) > 0;
+  function rechazar(inp, msg, valorAnterior) {
+    if (valorAnterior !== undefined) inp.value = valorAnterior;
+    inp.setCustomValidity(msg);
+    inp.reportValidity();
+    setStatus(msg);
+    inp.addEventListener("input", () => inp.setCustomValidity(""), { once: true });
+  }
 
   // ---------- Cálculos ----------
   // Rendimiento: cuánto producto útil sale de lo comprado (100% si no se cargó).
@@ -49,7 +58,7 @@ export function iniciarCalculadora(s) {
     }
     const ins = state.insumos[it.insumo];
     if (!ins) return { nombre: "(insumo borrado)", unidad: "", cu: 0, faltas: ["un insumo de la receta fue borrado"] };
-    const faltas = !ins.cantidad || !ins.precio ? ["la cantidad o el precio de compra de " + ins.nombre + " (pestaña Insumos)"] : [];
+    const faltas = !(Number(ins.cantidad) > 0) || ins.precio == null || ins.precio === "" ? ["la cantidad o el precio de compra de " + ins.nombre + " (pestaña Insumos)"] : [];
     return { nombre: ins.nombre, unidad: UNID[ins.unidad].base, cu: costoUso(ins), packaging: !!ins.packaging, faltas };
   }
   function costoProducto(p, depth) {
@@ -213,7 +222,7 @@ export function iniciarCalculadora(s) {
           </table></div>
           <form class="addrow" id="f-add" style="margin-top:12px">
             <label class="f">Agregar insumo<select id="f-add-ins"></select></label>
-            <label class="f">Cantidad <span id="f-add-u"></span><input id="f-add-cant" class="n" type="number" step="any" min="0" required></label>
+            <label class="f">Cantidad <span id="f-add-u"></span><input id="f-add-cant" class="n" type="number" step="any" min="0.001" required></label>
             <button class="btn" type="submit">Agregar</button>
           </form>
         </div>
@@ -253,7 +262,9 @@ export function iniciarCalculadora(s) {
       const inp = tr.querySelector("input");
       inp.value = it.cantidad;
       inp.id = "f-cant-" + idx;
-      inp.onchange = () => { const items = (p.items || []).slice(); items[idx] = Object.assign({}, it, { cantidad: Number(inp.value) || 0 }); saveProd(id, { items }); };
+      inp.onchange = () => {
+        if (!positivo(inp.value)) return rechazar(inp, "La cantidad tiene que ser mayor a 0. Para sacarlo de la receta usá la ✕.", it.cantidad);
+        const items = (p.items || []).slice(); items[idx] = Object.assign({}, it, { cantidad: Number(inp.value) || 0 }); saveProd(id, { items }); };
       tr.querySelector("button").onclick = () => { const items = (p.items || []).slice(); items.splice(idx, 1); saveProd(id, { items }); };
       tb.appendChild(tr);
     });
@@ -277,6 +288,7 @@ export function iniciarCalculadora(s) {
       e.preventDefault();
       const it = selItem();
       if (!it) return;
+      if (!positivo($("#f-add-cant").value)) return rechazar($("#f-add-cant"), "La cantidad tiene que ser mayor a 0.");
       const items = (p.items || []).concat([Object.assign(it, { cantidad: Number($("#f-add-cant").value) || 0 })]);
       saveProd(id, { items });
     };
@@ -319,6 +331,8 @@ export function iniciarCalculadora(s) {
       upd.textContent = i.actualizado ? new Date(i.actualizado).toLocaleDateString("es-AR") : "—";
       if (i.ejemplo) upd.insertAdjacentHTML("beforeend", ' <span class="tag ej">ejemplo</span>');
       const save = () => {
+        if (!positivo(ca.value)) return rechazar(ca, "La cantidad que comprás tiene que ser mayor a 0.", i.cantidad);
+        if (pr.value === "" || Number(pr.value) < 0) return rechazar(pr, "Cargá el precio que pagás (puede ser 0 si no te cuesta nada).", i.precio);
         const body = { nombre: nm.value.trim() || i.nombre, cantidad: Number(ca.value) || 0, unidad: un.value, precio: Number(pr.value) || 0,
           rendimiento: Number(re.value) > 0 ? Math.min(Number(re.value), 100) : 100, merma: Math.max(Number(me.value) || 0, 0), packaging: pk.checked, actualizado: new Date().toISOString() };
         // un precio editado ya es dato real
@@ -438,6 +452,7 @@ export function iniciarCalculadora(s) {
     const body = { nombre: $("#ni-nombre").value.trim(), cantidad: Number($("#ni-cant").value) || 0, unidad: $("#ni-unidad").value, precio: Number($("#ni-precio").value) || 0,
       rendimiento: Number($("#ni-rend").value) > 0 ? Math.min(Number($("#ni-rend").value), 100) : 100, merma: Math.max(Number($("#ni-merma").value) || 0, 0), packaging: $("#ni-pack").checked, actualizado: new Date().toISOString() };
     if (!body.nombre) return;
+    if (!positivo($("#ni-cant").value)) return rechazar($("#ni-cant"), "La cantidad que comprás tiene que ser mayor a 0.");
     const id = newId();
     state.insumos[id] = body;
     $("#ni-nombre").value = ""; $("#ni-precio").value = ""; $("#ni-cant").value = "1"; $("#ni-rend").value = "100"; $("#ni-merma").value = "0"; $("#ni-pack").checked = false;
