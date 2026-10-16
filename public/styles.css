@@ -282,7 +282,8 @@ button.btn.grande { font-size: 1.1rem; padding: 16px; min-height: 56px; }
 .venta .it { grid-column: 1 / -1; grid-row: 2; }
 .venta .md { grid-column: 3; grid-row: 1; color: var(--muted); font-size: 0.82rem; }
 .venta .t { grid-column: 4; grid-row: 1; font-weight: 700; }
-.venta.anulada { opacity: .55; text-decoration: line-through; }
+.venta.anulada { opacity: .55; }
+.venta.anulada > .n, .venta.anulada > .h, .venta.anulada > .it, .venta.anulada > .md, .venta.anulada > .t { text-decoration: line-through; }
 @media (max-width: 760px) {
   .caja-pos { grid-template-columns: minmax(0, 1fr); }
   .caja-prods { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -322,3 +323,38 @@ button.btn.grande { font-size: 1.1rem; padding: 16px; min-height: 56px; }
   .res-kpi .v { font-size: 1.1rem; }
   .res-tabla, .res-prod { font-size: 0.82rem; }
 }
+/* Caja: gastos y retiros, anulaciones y cierre */
+.caja-movs, .caja-cierre { margin-top: 18px; padding: 14px; display: grid; gap: 10px; min-width: 0; }
+.caja-movs .hint, .caja-cierre .hint { margin: 0; }
+.mov-tipos .chip { min-height: 44px; }
+.mov-campos { display: flex; flex-wrap: wrap; gap: 8px; }
+.mov-campos input.n { width: 9em; font-size: 1.15rem; }
+.mov-campos input.motivo { flex: 1; min-width: 12em; }
+.caja-movs label.check { display: flex; gap: 8px; align-items: center; font-size: 0.88rem; cursor: pointer; }
+.caja-movs label.check input { width: 20px; height: 20px; accent-color: var(--accent); }
+.caja-movs > .btn.primary { justify-self: start; min-height: 48px; }
+.venta > .btn.chico, .venta > .tag, .venta > .anular-form { grid-column: 1 / -1; justify-self: start; }
+button.btn.chico { font-size: 0.8rem; padding: 4px 12px; min-height: 34px; }
+.venta.anulada > .tag { text-decoration: none; }
+.anular-form { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; width: 100%; text-decoration: none; }
+.anular-form input.motivo { flex: 1; min-width: 12em; }
+.anular-form .caja-msg { flex-basis: 100%; }
+.cierre-esperado { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--glass-strong); border: 1px solid var(--glass-edge); }
+.cierre-esperado .k { font-weight: 600; }
+.cierre-esperado .v { font-size: 1.5rem; font-weight: 800; }
+.cierre-esperado.chico .v { font-size: 1.15rem; }
+.cierre-dif { display: block; font-weight: 700; min-height: 1.2em; }
+.cierre-dif.ok { color: var(--good); }
+.cierre-dif.mal { color: var(--bad); }
+.caja-cierre textarea.obs { width: 100%; font: inherit; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.cierre-disp { margin: 0; font-weight: 600; }
+.cierre-acc { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.caja-cierre button.btn.danger.grande { background: var(--bad); color: #fff; border-color: var(--bad); font-weight: 800; }
+.caja-cierre button.btn.danger.grande:disabled { opacity: .5; cursor: not-allowed; }
+.caja-cierre > .btn.primary.grande { justify-self: start; }
+.res-sub { margin: 6px 0 0; font-size: 0.95rem; }
+.res-tabla tr.mal td { color: var(--bad); }
+.res-kpi.mal .v { color: var(--bad); }
+.caja-msg-txt.ok { color: var(--good); font-weight: 600; }
+.cierre-esperado .v { white-space: nowrap; }
+.movs .venta .t { grid-column: 3 / 5; justify-self: end; }

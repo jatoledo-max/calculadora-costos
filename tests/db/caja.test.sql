@@ -213,3 +213,174 @@ reset role;
 -- La base misma impide dos cajas abiertas (aunque alguien saltee las funciones).
 select pg_temp.espera_error($q$insert into public.cajas (id, negocio_id, numero, fecha_operacion, saldo_inicial)
   values (gen_random_uuid(), 'a0000000-0000-0000-0000-00000000000a', 50, current_date, 0)$q$, 'cajas_una_abierta');
+
+-- =====================================================================
+-- Fase 4: la noche de ejemplo del diseño (fase-1-diseno.md, sección 8), con gastos fijos de $ 225 por producto
+-- y nafta de $ 250 por pedido. Usuario D, otro negocio, para que los números sean exactamente los del ejemplo.
+-- =====================================================================
+insert into auth.users values ('dddddddd-0000-0000-0000-000000000004');
+insert into public.negocios (id, owner_id, nombre) values ('d0000000-0000-0000-0000-00000000000d', 'dddddddd-0000-0000-0000-000000000004', 'Ejemplo');
+insert into public.gastos (negocio_id, id, datos) values ('d0000000-0000-0000-0000-00000000000d', 'fijos', '{"nombre":"Fijos","monto":22500}');
+insert into public.ajustes (negocio_id, id, datos) values
+  ('d0000000-0000-0000-0000-00000000000d', 'general', '{"unidadesMes":100}'),
+  ('d0000000-0000-0000-0000-00000000000d', 'delivery', '{"naftaMes":25000,"pedidosMes":100}');
+insert into public.productos (negocio_id, id, datos) values
+  ('d0000000-0000-0000-0000-00000000000d', 'lomito', '{"nombre":"Lomito completo","precioVenta":10000,"envioIncluido":1000}'),
+  ('d0000000-0000-0000-0000-00000000000d', 'mayo', '{"nombre":"Pote de mayonesa","tipo":"extra","precioVenta":500}'),
+  ('d0000000-0000-0000-0000-00000000000d', 'promo3', '{"nombre":"Promo 3 lomitos","tipo":"promo","precioVenta":27000,"envioIncluido":1000}');
+
+set role authenticated;
+select set_config('request.jwt.claim.sub', 'dddddddd-0000-0000-0000-000000000004', false);
+
+-- Sin caja abierta no hay movimientos ni anulaciones.
+select pg_temp.espera_error($q$select public.registrar_movimiento(gen_random_uuid(), 'retiro', 'efectivo', 100)$q$, 'No hay una caja abierta');
+
+-- 20:00 abrir con $ 20.000 · 20:40 Venta 1 · 21:15 Venta 2 (y su doble toque) · 22:00 compra de pan · 23:30 retiro · 00:30 reserva
+do $$
+declare r jsonb;
+begin
+  perform public.abrir_caja('d1000000-0000-0000-0000-000000000001', 20000);
+  perform public.confirmar_venta('d2000000-0000-0000-0000-000000000001',
+    '[{"producto":"lomito","cantidad":1,"costo_unitario":5200,"packaging_unitario":300},{"producto":"mayo","cantidad":1,"costo_unitario":150}]',
+    '[{"medio":"efectivo","importe":10500}]');
+  perform public.confirmar_venta('d2000000-0000-0000-0000-000000000002',
+    '[{"producto":"promo3","cantidad":1,"costo_unitario":15600,"unidades":3}]',
+    '[{"medio":"transferencia","importe":20000},{"medio":"efectivo","importe":8000}]', 0, null, 1000, true);
+  r := public.confirmar_venta('d2000000-0000-0000-0000-000000000002',
+    '[{"producto":"promo3","cantidad":1,"costo_unitario":15600,"unidades":3}]',
+    '[{"medio":"transferencia","importe":20000},{"medio":"efectivo","importe":8000}]', 0, null, 1000, true);
+  if not (r->>'duplicada')::boolean then raise exception 'doble toque: %', r; end if;
+  perform public.registrar_movimiento('d3000000-0000-0000-0000-000000000001', 'compra_mercaderia', 'efectivo', 6000, 'Pan');
+  perform public.registrar_movimiento('d3000000-0000-0000-0000-000000000002', 'retiro', 'efectivo', 10000, null);
+  perform public.registrar_movimiento('d3000000-0000-0000-0000-000000000003', 'reserva', 'efectivo', 15000, 'Para reponer');
+  -- El mismo movimiento dos veces no se duplica.
+  r := public.registrar_movimiento('d3000000-0000-0000-0000-000000000002', 'retiro', 'efectivo', 10000, null);
+  if not (r->>'duplicado')::boolean or (select count(*) from public.movimientos) <> 3 then raise exception 'movimiento duplicado: %', r; end if;
+end $$;
+
+-- Movimientos inválidos: nada queda guardado.
+select pg_temp.espera_error($q$select public.registrar_movimiento(gen_random_uuid(), 'propina', 'efectivo', 100)$q$, 'Tipo de movimiento inválido');
+select pg_temp.espera_error($q$select public.registrar_movimiento(gen_random_uuid(), 'retiro', 'mercadopago', 100)$q$, 'no habilitado');
+select pg_temp.espera_error($q$select public.registrar_movimiento(gen_random_uuid(), 'retiro', 'efectivo', 0)$q$, 'mayor a $ 0');
+select pg_temp.espera_error($q$select public.registrar_movimiento(gen_random_uuid(), 'aporte', 'efectivo', -50)$q$, 'mayor a $ 0');
+select pg_temp.espera_error($q$select public.registrar_movimiento(gen_random_uuid(), 'gasto', 'efectivo', 100, '  ')$q$, 'Escribí qué pagaste');
+select pg_temp.espera_error($q$select public.registrar_movimiento(gen_random_uuid(), 'ajuste', 'efectivo', -100)$q$, 'motivo del ajuste');
+-- No puede salir más efectivo del que hay: se esperan $ 22.500.
+select pg_temp.espera_error($q$select public.registrar_movimiento(gen_random_uuid(), 'retiro', 'efectivo', 22500.01)$q$, 'debería haber $ 22.500 en efectivo');
+select pg_temp.espera_error($q$update public.movimientos set importe = 1$q$, 'permission denied');
+select pg_temp.espera_error($q$update public.ventas set estado = 'anulada'$q$, 'permission denied');
+do $$ begin
+  if (select count(*) from public.movimientos) <> 3 then raise exception 'quedó guardado un movimiento inválido'; end if;
+end $$;
+
+-- Informe en vivo antes de cerrar. Cuentas del ejemplo:
+-- margen 37.500 − 20.950 = 16.550; resultado 16.550 + 1.000 − 0 − 5 × 225 − 1 × 250 = 16.175 (la compra de pan no cuenta)
+-- efectivo esperado 20.000 + 10.500 + 8.000 − 6.000 − 10.000 = 22.500 (la reserva no saca plata)
+do $$
+declare r jsonb;
+begin
+  r := public.resumen_caja('d1000000-0000-0000-0000-000000000001');
+  if (r->>'ventas_netas')::numeric <> 37500 or (r->>'costo_mercaderia')::numeric <> 20950 or (r->>'margen_bruto')::numeric <> 16550 then raise exception 'ejemplo margen: %', r; end if;
+  if (r->>'gastos_fijos_estimados')::numeric <> 1125 or (r->>'nafta_estimada')::numeric <> 250 or (r->>'resultado_estimado')::numeric <> 16175 then raise exception 'ejemplo resultado: %', r; end if;
+  if (r->>'compras_mercaderia')::numeric <> 6000 or (r->>'retiros')::numeric <> 10000 or (r->>'reserva_apartada')::numeric <> 15000 then raise exception 'ejemplo movimientos: %', r; end if;
+  if (r->>'efectivo_esperado')::numeric <> 22500 or (r->>'transferencias_esperadas')::numeric <> 20000 then raise exception 'ejemplo efectivo: %', r; end if;
+  if (r->>'reserva_sugerida')::numeric <> 20950 then raise exception 'ejemplo reserva sugerida: %', r; end if;
+end $$;
+
+-- 00:45 cierre: contaste $ 22.300 (faltan $ 200). Sin observación no deja cerrar; con observación, sí.
+select pg_temp.espera_error($q$select public.cerrar_caja('d1000000-0000-0000-0000-000000000001', 22300, 20000, 20000, null)$q$,
+  'diferencia de − $ 200 en efectivo');
+select pg_temp.espera_error($q$select public.cerrar_caja('d1000000-0000-0000-0000-000000000001', 22300, 20000, 22301, 'x')$q$, 'no puede ser más que el efectivo contado');
+select pg_temp.espera_error($q$select public.cerrar_caja('d1000000-0000-0000-0000-000000000001', -1, null, 0, 'x')$q$, 'efectivo que contaste');
+do $$
+declare r jsonb; c record;
+begin
+  if (select estado from public.cajas where id = 'd1000000-0000-0000-0000-000000000001') <> 'abierta' then raise exception 'un cierre fallido cerró la caja'; end if;
+  r := public.cerrar_caja('d1000000-0000-0000-0000-000000000001', 22300, 20000, 20000, 'Faltan 200, vuelto mal dado');
+  -- Disponible = 22.300 + 20.000 − 20.000 de fondo − 15.000 de reserva = 7.300
+  if (r->>'diferencia_efectivo')::numeric <> -200 or (r->>'diferencia_transferencias')::numeric <> 0 or (r->>'disponible_estimado')::numeric <> 7300 then raise exception 'cierre: %', r; end if;
+  if (r->>'resultado_estimado')::numeric <> 16175 or (r->>'ya_estaba')::boolean then raise exception 'cierre resultado: %', r; end if;
+  select * into c from public.cajas where id = 'd1000000-0000-0000-0000-000000000001';
+  if c.estado <> 'cerrada' or c.efectivo_esperado <> 22500 or c.efectivo_contado <> 22300 or c.diferencia_efectivo <> -200
+     or c.fondo_siguiente <> 20000 or c.observaciones <> 'Faltan 200, vuelto mal dado' or (c.resumen->>'disponible_estimado')::numeric <> 7300 then
+    raise exception 'caja cerrada mal guardada: %', to_jsonb(c);
+  end if;
+  -- Reintento del cierre (el celular no recibió la respuesta): devuelve el mismo informe, no cambia nada.
+  r := public.cerrar_caja('d1000000-0000-0000-0000-000000000001', 1, null, 0, 'otro');
+  if not (r->>'ya_estaba')::boolean or (r->>'efectivo_contado')::numeric <> 22300 then raise exception 'cierre repetido: %', r; end if;
+  if (select count(*) from public.auditoria where accion = 'cerrar_caja' and negocio_id = 'd0000000-0000-0000-0000-00000000000d') <> 1 then raise exception 'auditoría del cierre'; end if;
+end $$;
+
+-- Caja cerrada: no se vende, no se cargan ni se anulan movimientos.
+select pg_temp.espera_error($q$select public.confirmar_venta(gen_random_uuid(), '[{"producto":"mayo","cantidad":1,"costo_unitario":150}]', '[{"medio":"efectivo","importe":500}]')$q$, 'No hay una caja abierta');
+select pg_temp.espera_error($q$select public.registrar_movimiento(gen_random_uuid(), 'aporte', 'efectivo', 100)$q$, 'No hay una caja abierta');
+select pg_temp.espera_error($q$select public.anular_movimiento('d3000000-0000-0000-0000-000000000002', 'error')$q$, 'ya está cerrada');
+select pg_temp.espera_error($q$select public.anular_venta('d2000000-0000-0000-0000-000000000001', 'error')$q$, 'Abrí la caja para anular');
+
+-- Día siguiente: se abre la Caja 2 y se anula la Venta 1 de ayer. El cierre de ayer no cambia.
+do $$
+declare r jsonb; r1 jsonb;
+begin
+  r1 := public.resumen_caja('d1000000-0000-0000-0000-000000000001');
+  perform public.abrir_caja('d1000000-0000-0000-0000-000000000002', 20000);
+  perform pg_temp.espera_error($q$select public.anular_venta('d2000000-0000-0000-0000-000000000001', ' ')$q$, 'motivo de la anulación');
+  r := public.anular_venta('d2000000-0000-0000-0000-000000000001', 'Se cobró mal');
+  if (r->>'misma_caja')::boolean or (r->>'ya_estaba')::boolean then raise exception 'anulación de ayer: %', r; end if;
+  r := public.anular_venta('d2000000-0000-0000-0000-000000000001', 'Otra vez');
+  if not (r->>'ya_estaba')::boolean then raise exception 'anulación repetida: %', r; end if;
+  if public.resumen_caja('d1000000-0000-0000-0000-000000000001') <> r1 then raise exception 'el cierre de ayer cambió después de la anulación'; end if;
+  r := public.resumen_caja('d1000000-0000-0000-0000-000000000002');
+  if (r->>'anulaciones_anteriores_total')::numeric <> 10500 or r->'anulaciones_anteriores'->0->>'venta' <> '1' or r->'anulaciones_anteriores'->0->>'caja' <> '1' then raise exception 'anulaciones anteriores: %', r; end if;
+  if (r->>'ventas')::int <> 0 or (r->>'efectivo_esperado')::numeric <> 20000 then raise exception 'la anulación de ayer movió la caja de hoy: %', r; end if;
+end $$;
+
+-- En la caja de hoy: una venta anulada en la misma caja deja de contar (la plata se devolvió).
+-- Un gasto del día resta del resultado; uno que ya está en los gastos fijos, no. Anular un movimiento lo saca de las cuentas.
+do $$
+declare r jsonb;
+begin
+  perform public.confirmar_venta('d2000000-0000-0000-0000-000000000003', '[{"producto":"lomito","cantidad":1,"costo_unitario":5200}]', '[{"medio":"efectivo","importe":10000}]');
+  perform public.confirmar_venta('d2000000-0000-0000-0000-000000000004', '[{"producto":"mayo","cantidad":2,"costo_unitario":150}]', '[{"medio":"transferencia","importe":1000}]');
+  r := public.anular_venta('d2000000-0000-0000-0000-000000000003', 'El cliente se arrepintió');
+  if not (r->>'misma_caja')::boolean then raise exception 'misma caja: %', r; end if;
+  perform public.registrar_movimiento('d3000000-0000-0000-0000-000000000011', 'gasto', 'efectivo', 3000, 'Garrafa de gas');
+  perform public.registrar_movimiento('d3000000-0000-0000-0000-000000000012', 'gasto', 'transferencia', 7000, 'Limpieza del mes', true);
+  perform public.registrar_movimiento('d3000000-0000-0000-0000-000000000013', 'ajuste', 'efectivo', -500, 'Billete roto');
+  perform public.registrar_movimiento('d3000000-0000-0000-0000-000000000014', 'aporte', 'efectivo', 2000, 'Cambio');
+  r := public.resumen_caja('d1000000-0000-0000-0000-000000000002');
+  -- Ventas: solo los 2 potes (1.000, costo 300). Resultado = 700 − 3.000 de gas − 2 × 225 = −2.750
+  if (r->>'ventas')::int <> 1 or (r->>'anuladas')::int <> 1 or (r->>'anuladas_total')::numeric <> 10000 then raise exception 'anuladas: %', r; end if;
+  if (r->>'gastos_operativos')::numeric <> 3000 or (r->>'gastos_en_fijos')::numeric <> 7000 or (r->>'resultado_estimado')::numeric <> -2750 then raise exception 'gastos: %', r; end if;
+  -- Efectivo = 20.000 − 3.000 − 500 + 2.000 = 18.500 · transferencias = 1.000 − 7.000 = −6.000
+  if (r->>'efectivo_esperado')::numeric <> 18500 or (r->>'transferencias_esperadas')::numeric <> -6000 or (r->>'ajustes')::numeric <> -500 then raise exception 'caja de hoy: %', r; end if;
+  perform pg_temp.espera_error($q$select public.anular_movimiento('d3000000-0000-0000-0000-000000000011', '')$q$, 'motivo de la anulación');
+  r := public.anular_movimiento('d3000000-0000-0000-0000-000000000011', 'Lo pagó otro');
+  r := public.resumen_caja('d1000000-0000-0000-0000-000000000002');
+  if (r->>'gastos_operativos')::numeric <> 0 or (r->>'efectivo_esperado')::numeric <> 21500 or (r->>'resultado_estimado')::numeric <> 250 then raise exception 'anular movimiento: %', r; end if;
+  if (select count(*) from public.auditoria where negocio_id = 'd0000000-0000-0000-0000-00000000000d' and accion in ('anular_venta', 'anular_movimiento', 'movimiento')) <> 10 then
+    raise exception 'auditoría: % filas', (select count(*) from public.auditoria where negocio_id = 'd0000000-0000-0000-0000-00000000000d' and accion in ('anular_venta', 'anular_movimiento', 'movimiento'));
+  end if;
+end $$;
+
+-- Sin diferencias, se cierra sin observación. El fondo queda propuesto para abrir mañana.
+do $$
+declare r jsonb;
+begin
+  r := public.cerrar_caja('d1000000-0000-0000-0000-000000000002', 21500, null, 15000, null);
+  if (r->>'diferencia_efectivo')::numeric <> 0 or r->>'diferencia_transferencias' is not null then raise exception 'cierre sin diferencias: %', r; end if;
+  -- Sin dato del banco, el disponible usa las transferencias esperadas: 21.500 − 6.000 − 15.000 − 0 = 500
+  if (r->>'disponible_estimado')::numeric <> 500 then raise exception 'disponible sin banco: %', r; end if;
+end $$;
+
+-- Otro negocio no puede anular, cargar ni cerrar lo de D.
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-0000-0000-000000000002', false);
+select pg_temp.espera_error($q$select public.anular_venta('d2000000-0000-0000-0000-000000000004', 'x')$q$, 'No se encontró la venta');
+select pg_temp.espera_error($q$select public.anular_movimiento('d3000000-0000-0000-0000-000000000012', 'x')$q$, 'No se encontró el movimiento');
+select pg_temp.espera_error($q$select public.cerrar_caja('d1000000-0000-0000-0000-000000000002', 0)$q$, 'No se encontró la caja');
+select pg_temp.espera_error($q$select public.registrar_movimiento('d3000000-0000-0000-0000-000000000012', 'aporte', 'efectivo', 1)$q$, 'Id de movimiento inválido');
+do $$ begin
+  if (select count(*) from public.movimientos) <> 0 then raise exception 'B ve movimientos de D'; end if;
+end $$;
+-- Nadie llama directo al cálculo interno.
+select pg_temp.espera_error($q$select public.caja_informe(c) from public.cajas c$q$, 'permission denied');
+reset role;

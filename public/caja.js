@@ -1,5 +1,6 @@
-// Pestaña Caja: abrir la caja y registrar ventas con botones grandes, pensada para usar con una mano.
-// Los productos y los costos salen de la calculadora (calc.estado y costos.js); la venta la valida y guarda la base.
+// Pestaña Caja: abrir la caja, vender con botones grandes (pensada para usar con una mano), cargar gastos y retiros,
+// anular y cerrar con el conteo de la plata. Los productos y los costos salen de la calculadora (calc.estado y costos.js);
+// cada operación la valida y la guarda la base.
 import { fmtPesos, aCentavos } from "./dinero.js";
 import { SinRespuesta } from "./stores.js";
 
@@ -8,10 +9,18 @@ export function iniciarCaja(calc, backend) {
   const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
   const uuid = () => crypto.randomUUID();
   const MEDIOS = { efectivo: "Efectivo", transferencia: "Transferencia" };
+  const TIPOS = {
+    gasto: { nombre: "Gasto", ayuda: "Algo que pagaste para el negocio (gas, cadete). Resta del resultado del día.", desc: "Qué pagaste (obligatorio)" },
+    compra_mercaderia: { nombre: "Compra de mercadería", ayuda: "Insumos que compraste (pan, carne). Sale plata, pero no resta del resultado: ese costo ya entra cuando vendés.", desc: "Qué compraste (obligatorio)" },
+    retiro: { nombre: "Retiro", ayuda: "Plata que sacás de la caja. No es un gasto: no cambia el resultado.", desc: "Detalle (opcional)" },
+    aporte: { nombre: "Aporte", ayuda: "Plata que ponés en la caja, por ejemplo para tener cambio.", desc: "Detalle (opcional)" },
+    reserva: { nombre: "Reserva", ayuda: "Plata que apartás para reponer mercadería o pagar algo. Sigue en la caja, pero no cuenta como disponible para retirar.", desc: "Para qué es (opcional)" },
+    ajuste: { nombre: "Ajuste", ayuda: "Corrección si la plata no coincide por algo que no quedó registrado. Queda con su motivo.", desc: "Motivo (obligatorio)" },
+  };
   const hora = (iso) => new Date(iso).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
 
   const st = {
-    cargado: false, caja: null, ventas: [], errorCarga: "", resumen: null, errorResumen: "",
+    cargado: false, caja: null, ventas: [], movimientos: [], errorCarga: "", resumen: null, errorResumen: "",
     cat: null, opcionPara: null,
     carrito: [],                          // [{ producto, opcion, cantidad }]
     envio: "retira", cargoOtro: "",       // retira | sin-cargo | cargo | otro
@@ -19,7 +28,13 @@ export function iniciarCaja(calc, backend) {
     dividir: false, efectivoDividido: "",
     pendienteId: null,                    // id de la venta en curso: se mantiene en los reintentos para no duplicar
     enviando: false, msg: null,           // { ok, texto }
+    mov: movVacio(),                      // formulario de gastos y retiros
+    anular: null,                         // { id, motivo, enviando } de la venta o el movimiento que se está anulando
+    msgVentas: null, msgMovs: null,
+    cierre: cierreVacio(),
   };
+  function movVacio() { return { tipo: "gasto", medio: "efectivo", signo: -1, importe: "", desc: "", fijos: false, pendienteId: null, enviando: false }; }
+  function cierreVacio() { return { abierto: false, contado: "", banco: "", fondo: null, obs: "", enviando: false, msg: null }; }
 
   // ---------- Catálogo ----------
   const prods = () => calc.estado.productos;
@@ -49,7 +64,7 @@ export function iniciarCaja(calc, backend) {
   async function recargar() {
     try {
       const r = await backend.cargar();
-      st.caja = r.caja; st.ventas = r.ventas; st.errorCarga = "";
+      st.caja = r.caja; st.ventas = r.ventas; st.movimientos = r.movimientos || []; st.errorCarga = "";
     } catch (e) {
       st.errorCarga = "No se pudo cargar la caja. Revisá la conexión y recargá la página.";
     }
@@ -65,13 +80,14 @@ export function iniciarCaja(calc, backend) {
   async function abrir() {
     const inp = $("#caja-saldo");
     if (inp.value === "" || Number(inp.value) < 0) { inp.setCustomValidity("Poné cuánto efectivo hay al empezar (puede ser 0)."); inp.reportValidity(); return; }
-    const b = $("#caja-btn-abrir"); b.disabled = true; b.textContent = "Abriendo…";
+    st.abriendo = true; renderAbrir();
     try {
       await backend.abrirCaja(uuid(), Number(inp.value));
       st.msg = null;
     } catch (e) {
       st.msg = { ok: false, texto: e instanceof SinRespuesta ? "Sin conexión. Probá de nuevo." : e.message };
     }
+    st.abriendo = false;
     await recargar();
   }
 
@@ -107,6 +123,75 @@ export function iniciarCaja(calc, backend) {
     st.dividir = false; st.efectivoDividido = ""; st.pendienteId = null; st.opcionPara = null;
   }
 
+  // ---------- Gastos, retiros y demás movimientos ----------
+  async function guardarMovimiento() {
+    const m = st.mov;
+    if (m.enviando) return;
+    const imp = aCentavos(m.importe);
+    if (!(imp > 0)) { st.msgMovs = { ok: false, texto: "Poné el importe." }; render(); return; }
+    m.pendienteId = m.pendienteId || uuid();
+    m.enviando = true; st.msgMovs = null; render();
+    try {
+      const r = await backend.registrarMovimiento({
+        id: m.pendienteId, tipo: m.tipo, medio: m.tipo === "reserva" ? "efectivo" : m.medio,
+        importe: (m.tipo === "ajuste" ? m.signo : 1) * imp / 100, descripcion: m.desc.trim(), enGastosFijos: m.fijos,
+      });
+      st.msgMovs = { ok: true, texto: "Guardado: " + TIPOS[r.tipo].nombre.toLowerCase() + " de " + fmtPesos(Math.abs(r.importe)) + "." };
+      const tipo = m.tipo, medio = m.medio;
+      st.mov = Object.assign(movVacio(), { tipo, medio });
+    } catch (e) {
+      st.msgMovs = { ok: false, texto: e instanceof SinRespuesta ? "No hubo respuesta. Tocá Guardar de nuevo: si ya se había guardado, no se duplica." : e.message };
+      m.enviando = false;
+    }
+    await recargar();
+  }
+
+  // Anular una venta o un movimiento: nunca se borra, queda marcado con el motivo.
+  async function confirmarAnulacion(tipo) {
+    const a = st.anular;
+    if (!a || a.enviando) return;
+    if (!a.motivo.trim()) { a.error = "Escribí el motivo."; render(); return; }
+    a.enviando = true; a.error = ""; render();
+    const clave = tipo === "venta" ? "msgVentas" : "msgMovs";
+    try {
+      if (tipo === "venta") {
+        const r = await backend.anularVenta(a.id, a.motivo.trim());
+        const pagos = ((st.ventas.find((v) => v.id === a.id) || {}).venta_pagos || []);
+        const ef = pagos.filter((p) => p.medio === "efectivo").reduce((s, p) => s + Number(p.importe), 0);
+        st[clave] = { ok: true, texto: "Venta " + r.numero + " anulada (" + fmtPesos(r.total) + ")." +
+          (ef > 0 ? " Sus " + fmtPesos(ef) + " en efectivo ya no cuentan en el efectivo esperado: si los cobraste, devolvelos." : "") };
+      } else {
+        await backend.anularMovimiento(a.id, a.motivo.trim());
+        st[clave] = { ok: true, texto: "Movimiento anulado." };
+      }
+      st.anular = null;
+    } catch (e) {
+      a.enviando = false;
+      a.error = e instanceof SinRespuesta ? "No hubo respuesta. Probá de nuevo: si ya se había anulado, no pasa nada." : e.message;
+    }
+    await recargar();
+  }
+
+  // Cerrar la caja: una sola operación en la base. Si se corta, la caja sigue abierta y se vuelve a intentar.
+  async function cerrar() {
+    const c = st.cierre;
+    if (c.enviando) return;
+    if (c.contado === "") { c.msg = { ok: false, texto: "Poné el efectivo que contaste." }; render(); return; }
+    c.enviando = true; c.msg = null; render();
+    try {
+      const r = await backend.cerrarCaja({
+        cajaId: st.caja.id, efectivoContado: Number(c.contado), transferenciasBanco: c.banco === "" ? null : Number(c.banco),
+        fondoSiguiente: Number(c.fondo) || 0, observaciones: c.obs.trim(),
+      });
+      st.cierre = cierreVacio();
+      st.msg = { ok: true, texto: "Caja " + r.numero + " cerrada." };
+    } catch (e) {
+      c.enviando = false;
+      c.msg = { ok: false, texto: e instanceof SinRespuesta ? "No hubo respuesta. Tocá Confirmar cierre de nuevo: si ya se había cerrado, vas a ver el informe." : e.message };
+    }
+    await recargar();
+  }
+
   function agregar(productoId, opcion) {
     const l = st.carrito.find((x) => x.producto === productoId && (x.opcion || null) === (opcion || null));
     if (l) l.cantidad = Math.min(l.cantidad + 1, 999);
@@ -125,7 +210,9 @@ export function iniciarCaja(calc, backend) {
     if (!$("#caja-abrir").hidden) renderAbrir();
     if (!$("#caja-pos").hidden) { renderCats(); renderProds(); renderCarrito(); }
     renderResumen();
+    renderMovs();
     renderVentas();
+    renderCierre();
   }
 
   function renderEstado() {
@@ -143,7 +230,7 @@ export function iniciarCaja(calc, backend) {
       e.querySelector("span:last-child").textContent = " desde las " + hora(c.abierta_en) + " · " + vs.length + (vs.length === 1 ? " venta" : " ventas") + " · " + fmtPesos(tot / 100);
     } else {
       e.classList.add("cerrada");
-      e.textContent = "Caja cerrada";
+      e.textContent = c ? "Caja " + c.numero + " cerrada" + (c.cerrada_en ? " a las " + hora(c.cerrada_en) : "") : "Caja cerrada";
     }
   }
 
@@ -153,7 +240,11 @@ export function iniciarCaja(calc, backend) {
       const fondo = st.caja && st.caja.fondo_siguiente != null ? st.caja.fondo_siguiente : ((calc.estado.ajustes || {}).caja || {}).fondoHabitual;
       if (fondo != null) inp.value = Number(fondo);
     }
-    $("#caja-abrir-msg").textContent = st.msg && !st.msg.ok ? st.msg.texto : "";
+    const b = $("#caja-btn-abrir");
+    b.disabled = !!st.abriendo; b.textContent = st.abriendo ? "Abriendo…" : "Abrir caja";
+    const m = $("#caja-abrir-msg");
+    m.textContent = st.msg ? st.msg.texto : "";
+    m.classList.toggle("ok", !!(st.msg && st.msg.ok));
   }
 
   function renderCats() {
@@ -320,20 +411,29 @@ export function iniciarCaja(calc, backend) {
     const ok = $("#caja-div-ok"); if (ok) ok.disabled = st.enviando || !dividido().valido;
   }
 
-  // Cómo va la caja: ventas, costo de mercadería, margen y resultado estimado (lo calcula la base: resumen_caja).
+  // Cómo va la caja (abierta) o el informe del cierre (cerrada). Los números los calcula la base: resumen_caja.
   function renderResumen() {
     const box = $("#caja-resumen");
-    const abierta = st.caja && st.caja.estado === "abierta";
-    box.hidden = !abierta;
-    if (!abierta) return;
+    const c = st.caja;
+    box.hidden = !c || !!st.errorCarga;
+    if (box.hidden) return;
+    const cerrada = c.estado === "cerrada";
     const abiertoAntes = box.open;
     box.textContent = "";
-    box.open = abiertoAntes;
-    box.appendChild(el("summary", "sec-t", "Cómo va la caja"));
+    box.open = cerrada || abiertoAntes;
+    box.appendChild(el("summary", "sec-t", cerrada ? "Informe del cierre · Caja " + c.numero : "Cómo va la caja"));
     if (st.errorResumen) { box.appendChild(el("p", "caja-msg mal", st.errorResumen)); return; }
     const r = st.resumen;
     if (!r) { box.appendChild(el("p", "empty", "Calculando…")); return; }
-    if (!r.ventas) { box.appendChild(el("p", "empty", "Cuando registres ventas, acá vas a ver cuánto vendiste, cuánto costó y cuánto queda.")); return; }
+    if (cerrada && r.efectivo_contado == null) { box.appendChild(el("p", "empty", "Esta caja se cerró sin informe.")); return; }
+    const hayAlgo = r.ventas || r.anuladas || (r.anulaciones_anteriores || []).length || st.movimientos.length;
+    if (!cerrada && !hayAlgo) { box.appendChild(el("p", "empty", "Cuando registres ventas, acá vas a ver cuánto vendiste, cuánto costó y cuánto queda.")); return; }
+
+    if (cerrada) {
+      const d = new Date(r.cerrada_en || c.cerrada_en);
+      box.appendChild(el("p", "hint", "Abierta el " + new Date(r.abierta_en || c.abierta_en).toLocaleDateString("es-AR") + " a las " + hora(r.abierta_en || c.abierta_en) +
+        ", cerrada el " + d.toLocaleDateString("es-AR") + " a las " + hora(d) + ". Este informe ya no cambia."));
+    }
 
     const kpis = el("div", "res-kpis");
     const kpi = (k, v, nota, cls) => {
@@ -345,7 +445,12 @@ export function iniciarCaja(calc, backend) {
     kpi("Ventas netas", fmtPesos(Math.round(r.ventas_netas)), r.ventas + (r.ventas === 1 ? " venta" : " ventas"));
     kpi("Costo de mercadería", fmtPesos(Math.round(r.costo_mercaderia)), "insumos y packaging");
     kpi("Margen bruto", fmtPesos(Math.round(r.margen_bruto)), r.margen_pct != null ? r.margen_pct.toLocaleString("es-AR") + "% de las ventas netas" : "");
-    kpi("Resultado estimado", fmtPesos(Math.round(r.resultado_estimado)), "después de gastos fijos y nafta", "hl");
+    kpi("Resultado estimado", fmtPesos(Math.round(r.resultado_estimado)), "después de gastos, gastos fijos y nafta", "hl");
+    if (cerrada) {
+      const dif = Number(r.diferencia_efectivo);
+      kpi("Diferencia de efectivo", dif ? fmtPesos(Math.round(dif)) : "$ 0", dif < 0 ? "falta plata" : dif > 0 ? "sobra plata" : "coincide", dif ? "mal" : "");
+      kpi("Disponible para retirar", fmtPesos(Math.round(r.disponible_estimado)), "estimado", "hl");
+    }
     box.appendChild(kpis);
 
     if (r.ventas_costo_incompleto) {
@@ -356,38 +461,168 @@ export function iniciarCaja(calc, backend) {
       box.appendChild(a);
     }
 
-    // Detalle en el orden de las fórmulas, cada concepto por separado.
-    const tabla = el("table", "res-tabla");
-    const fila = (k, v, cls) => { const tr = el("tr", cls || ""); tr.append(el("td", null, k), el("td", "r num", v)); tabla.appendChild(tr); };
-    fila("Ventas brutas (precio de lista)", fmtPesos(r.ventas_brutas));
-    if (r.descuentos) fila("− Descuentos", fmtPesos(r.descuentos));
-    fila("= Ventas netas", fmtPesos(r.ventas_netas), "tot");
-    fila("− Costo de mercadería vendida", fmtPesos(r.costo_mercaderia));
-    fila("= Margen bruto", fmtPesos(r.margen_bruto), "tot");
-    if (r.envios_cobrados) fila("+ Envíos cobrados aparte", fmtPesos(r.envios_cobrados));
-    fila("− Gastos fijos estimados (" + r.unidades + " productos × " + fmtPesos(r.gasto_fijo_por_unidad) + ")", fmtPesos(r.gastos_fijos_estimados));
-    fila("− Nafta estimada (" + r.pedidos_con_envio + (r.pedidos_con_envio === 1 ? " pedido" : " pedidos") + " × " + fmtPesos(r.nafta_por_pedido) + ")", fmtPesos(r.nafta_estimada));
-    fila("= Resultado estimado", fmtPesos(r.resultado_estimado), "tot hl");
-    box.appendChild(tabla);
+    // Cada pregunta en su tabla, cada concepto por separado.
+    const tabla = (titulo, filas) => {
+      box.appendChild(el("h3", "res-sub", titulo));
+      const t = el("table", "res-tabla");
+      filas.filter(Boolean).forEach(([k, v, cls]) => { const tr = el("tr", cls || ""); tr.append(el("td", null, k), el("td", "r num", v)); t.appendChild(tr); });
+      box.appendChild(t);
+    };
+    tabla("¿Cuánto gané?", [
+      ["Ventas brutas (precio de lista)", fmtPesos(r.ventas_brutas)],
+      r.descuentos ? ["− Descuentos", fmtPesos(r.descuentos)] : null,
+      ["= Ventas netas", fmtPesos(r.ventas_netas), "tot"],
+      ["− Costo de mercadería vendida", fmtPesos(r.costo_mercaderia)],
+      ["= Margen bruto", fmtPesos(r.margen_bruto), "tot"],
+      r.envios_cobrados ? ["+ Envíos cobrados aparte", fmtPesos(r.envios_cobrados)] : null,
+      r.gastos_operativos ? ["− Gastos del día", fmtPesos(r.gastos_operativos)] : null,
+      ["− Gastos fijos estimados (" + r.unidades + " productos × " + fmtPesos(r.gasto_fijo_por_unidad) + ")", fmtPesos(r.gastos_fijos_estimados)],
+      ["− Nafta estimada (" + r.pedidos_con_envio + (r.pedidos_con_envio === 1 ? " pedido" : " pedidos") + " × " + fmtPesos(r.nafta_por_pedido) + ")", fmtPesos(r.nafta_estimada)],
+      ["= Resultado estimado", fmtPesos(r.resultado_estimado), "tot hl"],
+    ]);
+    const notas = [];
+    if (r.gastos_en_fijos) notas.push(fmtPesos(r.gastos_en_fijos) + " de gastos pagados hoy ya están en tus gastos fijos: no se restan de nuevo.");
+    if (r.compras_mercaderia) notas.push("Las compras de mercadería (" + fmtPesos(r.compras_mercaderia) + ") no restan del resultado: ese costo entra cuando vendés.");
+    if (notas.length) box.appendChild(el("p", "hint", notas.join(" ")));
 
-    const medios = Object.entries(r.por_medio || {}).map(([m, v]) => (MEDIOS[m] || m) + " " + fmtPesos(v)).join(" · ");
-    box.appendChild(el("p", "hint", "Cobrado: " + fmtPesos(r.total_cobrado) + (medios ? " (" + medios + ")" : "") + "." +
-      (r.envio_incluido_en_precios ? " De las ventas, " + fmtPesos(r.envio_incluido_en_precios) + " es envío incluido en los precios." : "")));
+    tabla("¿Cuánta plata tiene que haber?", [
+      ["Efectivo al abrir", fmtPesos(r.saldo_inicial)],
+      ["+ Cobrado en efectivo", fmtPesos(r.cobrado_efectivo)],
+      Number(r.movimientos_efectivo) ? ["± Gastos, compras, retiros, aportes y ajustes en efectivo", fmtPesos(r.movimientos_efectivo)] : null,
+      ["= Efectivo esperado", fmtPesos(r.efectivo_esperado), "tot"],
+      cerrada ? ["Efectivo contado", fmtPesos(r.efectivo_contado)] : null,
+      cerrada ? ["Diferencia", fmtPesos(r.diferencia_efectivo), "tot" + (Number(r.diferencia_efectivo) ? " mal" : "")] : null,
+      ["Cobrado por transferencia", fmtPesos(r.cobrado_transferencia)],
+      Number(r.movimientos_transferencia) ? ["± Pagado o recibido por transferencia", fmtPesos(r.movimientos_transferencia)] : null,
+      ["= Transferencias esperadas", fmtPesos(r.transferencias_esperadas), "tot"],
+      cerrada && r.transferencias_banco != null ? ["Lo que viste en el banco", fmtPesos(r.transferencias_banco)] : null,
+      cerrada && r.transferencias_banco != null ? ["Diferencia", fmtPesos(r.diferencia_transferencias), "tot" + (Number(r.diferencia_transferencias) ? " mal" : "")] : null,
+    ]);
 
-    const tp = el("table", "res-prod");
-    tp.innerHTML = "<thead><tr><th>Producto</th><th class='r'>Cant.</th><th class='r'>Ventas</th><th class='r'>Costo</th><th class='r'>Margen</th></tr></thead>";
-    const tb = el("tbody");
-    r.por_producto.forEach((x) => {
-      const tr = el("tr");
-      const nm = el("td", null, x.nombre);
-      if (x.costo_incompleto) nm.append(" ", el("span", "tag falta", "costo incompleto"));
-      tr.append(nm, el("td", "r num", String(x.cantidad)), el("td", "r num", fmtPesos(x.ventas)), el("td", "r num", fmtPesos(x.costo)), el("td", "r num", fmtPesos(x.margen)));
-      tb.appendChild(tr);
+    if (cerrada) {
+      const banco = r.transferencias_banco != null;
+      tabla("¿Cuánto puedo retirar?", [
+        ["Efectivo contado", fmtPesos(r.efectivo_contado)],
+        ["+ Transferencias del día" + (banco ? " (lo que viste en el banco)" : " (esperadas)"), fmtPesos(banco ? r.transferencias_banco : r.transferencias_esperadas)],
+        ["− Fondo que queda para mañana", fmtPesos(r.fondo_siguiente)],
+        ["− Reserva apartada", fmtPesos(r.reserva_apartada)],
+        ["= Disponible estimado para retirar", fmtPesos(r.disponible_estimado), "tot hl"],
+      ]);
+    } else if (r.reserva_apartada) {
+      box.appendChild(el("p", "hint", "Reserva apartada: " + fmtPesos(r.reserva_apartada) + "."));
+    }
+    box.appendChild(el("p", "hint", "Reserva sugerida para reponer mercadería: " + fmtPesos(r.reserva_sugerida) + " (lo que costó lo que vendiste)." +
+      (cerrada && Number(r.reserva_apartada) < Number(r.reserva_sugerida) ? " Apartaste " + fmtPesos(r.reserva_apartada) + "." : "")));
+
+    if (r.anuladas) box.appendChild(el("p", "hint", (r.anuladas === 1 ? "1 venta anulada" : r.anuladas + " ventas anuladas") + " en esta caja (" + fmtPesos(r.anuladas_total) + "): " + (r.anuladas === 1 ? "no cuenta" : "no cuentan") + " en nada."));
+    (r.anulaciones_anteriores || []).forEach((x) => box.appendChild(el("p", "hint",
+      "Anulación de un día anterior: Venta " + x.venta + " de la Caja " + x.caja + ", " + fmtPesos(x.total) + " (" + x.motivo + "). El cierre de ese día no cambia; si devolviste plata, cargala como retiro.")));
+    if (cerrada && r.observaciones) { const o = el("p", "hint"); o.append(el("b", null, "Observaciones: "), document.createTextNode(r.observaciones)); box.appendChild(o); }
+
+    if (r.por_producto.length) {
+      const tp = el("table", "res-prod");
+      tp.innerHTML = "<thead><tr><th>Producto</th><th class='r'>Cant.</th><th class='r'>Ventas</th><th class='r'>Costo</th><th class='r'>Margen</th></tr></thead>";
+      const tb = el("tbody");
+      r.por_producto.forEach((x) => {
+        const tr = el("tr");
+        const nm = el("td", null, x.nombre);
+        if (x.costo_incompleto) nm.append(" ", el("span", "tag falta", "costo incompleto"));
+        tr.append(nm, el("td", "r num", String(x.cantidad)), el("td", "r num", fmtPesos(x.ventas)), el("td", "r num", fmtPesos(x.costo)), el("td", "r num", fmtPesos(x.margen)));
+        tb.appendChild(tr);
+      });
+      tp.appendChild(tb);
+      const wrap = el("div", "tbl-wrap"); wrap.appendChild(tp);
+      box.appendChild(wrap);
+    }
+    box.appendChild(el("p", "hint", "El resultado es una estimación, no la ganancia contable. El disponible no descuenta impuestos ni compras futuras que no hayas cargado. Los descuentos se restan del total, no de cada producto."));
+  }
+
+  // Campo de anulación (motivo + confirmar) para una venta o un movimiento.
+  function formAnular(tipo, id, texto) {
+    const a = st.anular;
+    const f = el("div", "anular-form");
+    const mo = el("input", "motivo"); mo.placeholder = "Motivo de la anulación (obligatorio)"; mo.maxLength = 120; mo.value = a.motivo;
+    mo.setAttribute("aria-label", "Motivo de la anulación");
+    mo.oninput = () => { a.motivo = mo.value; };
+    const ok = el("button", "btn danger", a.enviando ? "Anulando…" : texto); ok.type = "button"; ok.disabled = a.enviando;
+    ok.onclick = () => confirmarAnulacion(tipo);
+    const no = el("button", "btn ghost", "Cancelar"); no.type = "button"; no.onclick = () => { st.anular = null; render(); };
+    f.append(mo, ok, no);
+    if (a.error) f.appendChild(el("p", "caja-msg mal", a.error));
+    setTimeout(() => { if (st.anular && st.anular.id === id && document.activeElement !== mo) mo.focus(); });
+    return f;
+  }
+  const botonAnular = (id) => {
+    const b = el("button", "btn ghost chico", "Anular"); b.type = "button";
+    b.onclick = () => { st.anular = { id, motivo: "", enviando: false, error: "" }; st.msgVentas = null; st.msgMovs = null; render(); };
+    return b;
+  };
+  const mensaje = (m) => { const d = el("div", "caja-msg " + (m.ok ? "ok" : "mal"), m.texto); d.setAttribute("role", m.ok ? "status" : "alert"); return d; };
+
+  // Gastos, compras, retiros, aportes, reservas y ajustes de la caja abierta.
+  function renderMovs() {
+    const box = $("#caja-movs");
+    const abierta = st.caja && st.caja.estado === "abierta";
+    box.hidden = !abierta;
+    if (!abierta) return;
+    const enfocado = document.activeElement && document.activeElement.id;
+    box.textContent = "";
+    box.appendChild(el("h2", "sec-t", "Gastos y retiros"));
+    const m = st.mov;
+    const chips = (k, opciones, actual, alElegir) => {
+      const fila = el("div", "fila-chips");
+      if (k) fila.appendChild(el("span", "k", k));
+      opciones.forEach(([v, txt]) => {
+        const b = el("button", "chip", txt); b.type = "button";
+        b.setAttribute("aria-pressed", actual === v ? "true" : "false");
+        b.onclick = () => { alElegir(v); render(); };
+        fila.appendChild(b);
+      });
+      return fila;
+    };
+    const tiposBox = chips(null, Object.entries(TIPOS).map(([k, t]) => [k, t.nombre]), m.tipo, (v) => { m.tipo = v; m.pendienteId = null; st.msgMovs = null; });
+    tiposBox.classList.add("mov-tipos");
+    box.appendChild(tiposBox);
+    box.appendChild(el("p", "hint", TIPOS[m.tipo].ayuda));
+    if (m.tipo !== "reserva") box.appendChild(chips("Con", Object.entries(MEDIOS), m.medio, (v) => { m.medio = v; m.pendienteId = null; }));
+    if (m.tipo === "ajuste") box.appendChild(chips(null, [[1, "Sobra plata (+)"], [-1, "Falta plata (−)"]], m.signo, (v) => { m.signo = v; m.pendienteId = null; }));
+
+    const fila = el("div", "mov-campos");
+    const imp = el("input", "n"); imp.id = "caja-mov-importe"; imp.type = "number"; imp.min = "0"; imp.step = "any"; imp.inputMode = "numeric"; imp.placeholder = "$";
+    imp.value = m.importe; imp.setAttribute("aria-label", "Importe");
+    imp.oninput = () => { m.importe = imp.value; m.pendienteId = null; };
+    const de = el("input", "motivo"); de.id = "caja-mov-desc"; de.maxLength = 120; de.placeholder = TIPOS[m.tipo].desc; de.value = m.desc;
+    de.setAttribute("aria-label", "Detalle");
+    de.oninput = () => { m.desc = de.value; m.pendienteId = null; };
+    fila.append(imp, de);
+    box.appendChild(fila);
+    if (m.tipo === "gasto") {
+      const lab = el("label", "check");
+      const cb = el("input"); cb.type = "checkbox"; cb.id = "caja-mov-fijos"; cb.checked = m.fijos;
+      cb.onchange = () => { m.fijos = cb.checked; m.pendienteId = null; };
+      lab.append(cb, document.createTextNode(" Ya está en mis gastos fijos (no lo resta de nuevo)"));
+      box.appendChild(lab);
+    }
+    const ok = el("button", "btn primary", m.enviando ? "Guardando…" : "Guardar " + TIPOS[m.tipo].nombre.toLowerCase());
+    ok.type = "button"; ok.id = "caja-mov-ok"; ok.disabled = m.enviando; ok.onclick = guardarMovimiento;
+    box.appendChild(ok);
+    if (st.msgMovs) box.appendChild(mensaje(st.msgMovs));
+    if (enfocado && ["caja-mov-importe", "caja-mov-desc"].includes(enfocado)) $("#" + enfocado).focus();
+
+    if (!st.movimientos.length) return;
+    const ul = el("ul", "ventas movs");
+    st.movimientos.forEach((x) => {
+      const li = el("li", "venta" + (x.estado === "anulado" ? " anulada" : ""));
+      const signo = x.tipo === "aporte" || (x.tipo === "ajuste" && x.importe > 0) ? "+ " : x.tipo === "reserva" ? "" : "− ";
+      const detalle = [x.tipo === "reserva" ? "Apartada" : MEDIOS[x.medio] || x.medio, x.descripcion, x.en_gastos_fijos ? "ya está en gastos fijos" : ""];
+      li.append(el("span", "n", TIPOS[x.tipo].nombre), el("span", "h", hora(x.creado_en)),
+        el("span", "it", detalle.filter(Boolean).join(" · ")), el("span", "t num", signo + fmtPesos(Math.abs(x.importe))));
+      if (x.estado === "anulado") li.appendChild(el("span", "tag", "anulado: " + x.motivo_anulacion));
+      else if (st.anular && st.anular.id === x.id) li.appendChild(formAnular("movimiento", x.id, "Anular movimiento"));
+      else li.appendChild(botonAnular(x.id));
+      ul.appendChild(li);
     });
-    tp.appendChild(tb);
-    const wrap = el("div", "tbl-wrap"); wrap.appendChild(tp);
-    box.appendChild(wrap);
-    box.appendChild(el("p", "hint", "Es una estimación, no la ganancia contable: no descuenta impuestos ni gastos del día que todavía no cargaste. Los descuentos se restan del total, no de cada producto."));
+    box.appendChild(ul);
   }
 
   function renderVentas() {
@@ -396,6 +631,7 @@ export function iniciarCaja(calc, backend) {
     if (!(st.caja && st.caja.estado === "abierta")) { box.hidden = true; return; }
     box.hidden = false;
     box.appendChild(el("h2", "sec-t", "Ventas de esta caja"));
+    if (st.msgVentas) box.appendChild(mensaje(st.msgVentas));
     if (!st.ventas.length) { box.appendChild(el("p", "empty", "Todavía no hay ventas.")); return; }
     const ul = el("ul", "ventas");
     st.ventas.forEach((v) => {
@@ -406,9 +642,93 @@ export function iniciarCaja(calc, backend) {
         el("span", "md", medios + (Number(v.cargo_envio) ? " · envío " + fmtPesos(v.cargo_envio) : "") + (Number(v.descuento) ? " · desc. " + fmtPesos(v.descuento) : "")),
         el("span", "t num", fmtPesos(v.total)));
       if (v.costo_incompleto) li.appendChild(el("span", "tag falta", "costo incompleto"));
+      if (v.estado === "anulada") li.appendChild(el("span", "tag", "anulada: " + (v.motivo_anulacion || "")));
+      else if (st.anular && st.anular.id === v.id) li.appendChild(formAnular("venta", v.id, "Anular venta " + v.numero));
+      else li.appendChild(botonAnular(v.id));
       ul.appendChild(li);
     });
     box.appendChild(ul);
+  }
+
+  // Cerrar la caja: efectivo esperado contra contado, transferencias contra banco, fondo para mañana y observaciones.
+  function renderCierre() {
+    const box = $("#caja-cierre");
+    const abierta = st.caja && st.caja.estado === "abierta";
+    box.hidden = !abierta;
+    if (!abierta) return;
+    const c = st.cierre, r = st.resumen;
+    const enfocado = document.activeElement && document.activeElement.id;
+    box.textContent = "";
+    box.appendChild(el("h2", "sec-t", "Cerrar la caja"));
+    if (!c.abierto) {
+      box.appendChild(el("p", "hint", "Contás la plata, la comparás con lo que tendría que haber y queda guardado el informe del día. Después no se puede modificar."));
+      const b = el("button", "btn primary grande", "Cerrar caja"); b.type = "button"; b.id = "caja-btn-cerrar";
+      b.onclick = () => { c.abierto = true; c.msg = null; render(); $("#caja-cierre-contado").focus(); };
+      box.appendChild(b);
+      return;
+    }
+    if (!r) { box.appendChild(el("p", st.errorResumen ? "caja-msg mal" : "empty", st.errorResumen || "Calculando…")); return; }
+    if (c.fondo == null) c.fondo = String(Number(st.caja.saldo_inicial) || 0);
+    if (st.carrito.length) box.appendChild(el("p", "caja-msg mal", "Hay una venta sin cobrar en el carrito. Cobrala o vaciá el carrito antes de cerrar."));
+
+    const campo = (id, etiqueta, valor, alCambiar, extra) => {
+      const lab = el("label", "f", etiqueta);
+      const i = el("input", "n grande"); i.id = id; i.type = "number"; i.min = "0"; i.step = "any"; i.inputMode = "numeric"; i.value = valor;
+      i.oninput = () => { alCambiar(i.value); refrescarCierre(); };
+      lab.appendChild(i);
+      if (extra) lab.appendChild(extra);
+      return lab;
+    };
+    const esperado = el("div", "cierre-esperado");
+    esperado.append(el("span", "k", "Efectivo que tendría que haber"), el("span", "v num", fmtPesos(r.efectivo_esperado)));
+    box.appendChild(esperado);
+    const dif = el("span", "cierre-dif"); dif.id = "caja-cierre-dif";
+    box.appendChild(campo("caja-cierre-contado", "Efectivo que contaste ($)", c.contado, (v) => { c.contado = v; }, dif));
+
+    const esperadoTr = el("div", "cierre-esperado chico");
+    esperadoTr.append(el("span", "k", "Transferencias que tendrían que haber entrado"), el("span", "v num", fmtPesos(r.transferencias_esperadas)));
+    box.appendChild(esperadoTr);
+    const difTr = el("span", "cierre-dif"); difTr.id = "caja-cierre-dif-tr";
+    box.appendChild(campo("caja-cierre-banco", "Lo que ves en el banco de hoy ($, opcional)", c.banco, (v) => { c.banco = v; }, difTr));
+    box.appendChild(campo("caja-cierre-fondo", "Efectivo que queda de fondo para mañana ($)", c.fondo, (v) => { c.fondo = v; }));
+
+    const lab = el("label", "f", "Observaciones (obligatorio si hay diferencia)");
+    const obs = el("textarea", "obs"); obs.id = "caja-cierre-obs"; obs.rows = 2; obs.maxLength = 500; obs.value = c.obs;
+    obs.oninput = () => { c.obs = obs.value; };
+    lab.appendChild(obs);
+    box.appendChild(lab);
+    const disp = el("p", "cierre-disp"); disp.id = "caja-cierre-disp";
+    box.appendChild(disp);
+
+    const acc = el("div", "cierre-acc");
+    const ok = el("button", "btn danger grande", c.enviando ? "Cerrando…" : "Confirmar cierre"); ok.type = "button"; ok.id = "caja-cierre-ok";
+    ok.disabled = c.enviando || !!st.carrito.length;
+    ok.onclick = cerrar;
+    const no = el("button", "btn ghost", "Cancelar"); no.type = "button"; no.disabled = c.enviando;
+    no.onclick = () => { st.cierre = cierreVacio(); render(); };
+    acc.append(ok, no);
+    box.appendChild(acc);
+    if (c.msg) box.appendChild(mensaje(c.msg));
+    if (enfocado && /^caja-cierre-/.test(enfocado) && $("#" + enfocado)) $("#" + enfocado).focus();
+    refrescarCierre();
+  }
+  // Diferencias y disponible en vivo, mientras se escribe (sin redibujar los campos).
+  function refrescarCierre() {
+    const c = st.cierre, r = st.resumen;
+    const d = $("#caja-cierre-dif"); if (!d || !r) return;
+    const txtDif = (dif) => (dif === 0 ? "Coincide" : dif < 0 ? "Falta " + fmtPesos(-dif / 100) : "Sobra " + fmtPesos(dif / 100));
+    const dEf = c.contado === "" ? null : aCentavos(c.contado) - aCentavos(r.efectivo_esperado);
+    d.textContent = dEf == null ? "" : txtDif(dEf);
+    d.className = "cierre-dif " + (dEf == null ? "" : dEf === 0 ? "ok" : "mal");
+    const dTr = c.banco === "" ? null : aCentavos(c.banco) - aCentavos(r.transferencias_esperadas);
+    const t = $("#caja-cierre-dif-tr");
+    t.textContent = dTr == null ? "" : txtDif(dTr);
+    t.className = "cierre-dif " + (dTr == null ? "" : dTr === 0 ? "ok" : "mal");
+    const disp = $("#caja-cierre-disp");
+    if (dEf == null) { disp.textContent = ""; return; }
+    const tr = c.banco === "" ? aCentavos(r.transferencias_esperadas) : aCentavos(c.banco);
+    const val = aCentavos(c.contado) + tr - aCentavos(c.fondo) - aCentavos(r.reserva_apartada);
+    disp.textContent = "Disponible estimado para retirar: " + fmtPesos(val / 100) + " (contado + transferencias − fondo − reserva apartada).";
   }
 
   $("#caja-btn-abrir").onclick = abrir;

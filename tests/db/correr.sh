@@ -20,4 +20,14 @@ psql -X -q -t -d $DB -c "$COMO_A" -c "$VENTA" | grep -q '"duplicada": true' || {
 wait
 [ "$(psql -X -q -t -A -d $DB -c "select count(*) from public.ventas where id = '99999999-0000-0000-0000-000000000009'")" = 1 ] || { echo "Concurrencia: venta duplicada"; exit 1; }
 
+# Se cierra la caja mientras otro celular manda una venta: la venta espera al cierre y se rechaza. Nada entra en una caja cerrada.
+CERRAR="select public.cerrar_caja(id, (public.resumen_caja(id)->>'efectivo_esperado')::numeric) from public.cajas where estado = 'abierta'"
+VENTA2="select public.confirmar_venta('99999999-0000-0000-0000-000000000010','[{\"producto\":\"mayo\",\"cantidad\":1,\"costo_unitario\":150}]','[{\"medio\":\"efectivo\",\"importe\":500}]')"
+psql -X -q -o /dev/null -d $DB -c "begin" -c "$COMO_A" -c "$CERRAR" -c "select pg_sleep(1.5)" -c "commit" &
+sleep 0.5
+SALIDA=$(psql -X -q -t -d $DB -c "$COMO_A" -c "$VENTA2" 2>&1 || true)
+grep -q "No hay una caja abierta" <<<"$SALIDA" || { echo "Concurrencia: entró una venta durante el cierre: $SALIDA"; exit 1; }
+wait
+[ "$(psql -X -q -t -A -d $DB -c "select count(*) from public.ventas where id = '99999999-0000-0000-0000-000000000010'")" = 0 ] || { echo "Concurrencia: venta guardada en caja cerrada"; exit 1; }
+
 echo "Pruebas de la base: OK"
