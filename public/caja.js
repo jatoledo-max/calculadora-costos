@@ -11,7 +11,7 @@ export function iniciarCaja(calc, backend) {
   const hora = (iso) => new Date(iso).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
 
   const st = {
-    cargado: false, caja: null, ventas: [], errorCarga: "",
+    cargado: false, caja: null, ventas: [], errorCarga: "", resumen: null, errorResumen: "",
     cat: null, opcionPara: null,
     carrito: [],                          // [{ producto, opcion, cantidad }]
     envio: "retira", cargoOtro: "",       // retira | sin-cargo | cargo | otro
@@ -52,6 +52,11 @@ export function iniciarCaja(calc, backend) {
       st.caja = r.caja; st.ventas = r.ventas; st.errorCarga = "";
     } catch (e) {
       st.errorCarga = "No se pudo cargar la caja. Revisá la conexión y recargá la página.";
+    }
+    st.resumen = null; st.errorResumen = "";
+    if (st.caja && !st.errorCarga) {
+      try { st.resumen = await backend.resumen(st.caja.id); }
+      catch (e) { st.errorResumen = "No se pudo calcular el resumen. Si recién actualizaste la app, corré de nuevo supabase/caja.sql en Supabase."; }
     }
     st.cargado = true;
     render();
@@ -119,6 +124,7 @@ export function iniciarCaja(calc, backend) {
     $("#caja-pos").hidden = !(st.caja && st.caja.estado === "abierta");
     if (!$("#caja-abrir").hidden) renderAbrir();
     if (!$("#caja-pos").hidden) { renderCats(); renderProds(); renderCarrito(); }
+    renderResumen();
     renderVentas();
   }
 
@@ -312,6 +318,76 @@ export function iniciarCaja(calc, backend) {
     const dc = $("#caja-desc-chip"); if (dc) dc.textContent = t.desc ? "Descuento − " + fmtPesos(t.desc / 100) : "Descuento";
     const r = $("#caja-div-resto"); if (r) r.textContent = "Transferencia: " + fmtPesos(dividido().tr / 100);
     const ok = $("#caja-div-ok"); if (ok) ok.disabled = st.enviando || !dividido().valido;
+  }
+
+  // Cómo va la caja: ventas, costo de mercadería, margen y resultado estimado (lo calcula la base: resumen_caja).
+  function renderResumen() {
+    const box = $("#caja-resumen");
+    const abierta = st.caja && st.caja.estado === "abierta";
+    box.hidden = !abierta;
+    if (!abierta) return;
+    const abiertoAntes = box.open;
+    box.textContent = "";
+    box.open = abiertoAntes;
+    box.appendChild(el("summary", "sec-t", "Cómo va la caja"));
+    if (st.errorResumen) { box.appendChild(el("p", "caja-msg mal", st.errorResumen)); return; }
+    const r = st.resumen;
+    if (!r) { box.appendChild(el("p", "empty", "Calculando…")); return; }
+    if (!r.ventas) { box.appendChild(el("p", "empty", "Cuando registres ventas, acá vas a ver cuánto vendiste, cuánto costó y cuánto queda.")); return; }
+
+    const kpis = el("div", "res-kpis");
+    const kpi = (k, v, nota, cls) => {
+      const d = el("div", "res-kpi" + (cls ? " " + cls : ""));
+      d.append(el("span", "k", k), el("span", "v num", v)); // los cuadros grandes van sin centavos; el detalle los muestra
+      if (nota) d.appendChild(el("span", "note", nota));
+      kpis.appendChild(d);
+    };
+    kpi("Ventas netas", fmtPesos(Math.round(r.ventas_netas)), r.ventas + (r.ventas === 1 ? " venta" : " ventas"));
+    kpi("Costo de mercadería", fmtPesos(Math.round(r.costo_mercaderia)), "insumos y packaging");
+    kpi("Margen bruto", fmtPesos(Math.round(r.margen_bruto)), r.margen_pct != null ? r.margen_pct.toLocaleString("es-AR") + "% de las ventas netas" : "");
+    kpi("Resultado estimado", fmtPesos(Math.round(r.resultado_estimado)), "después de gastos fijos y nafta", "hl");
+    box.appendChild(kpis);
+
+    if (r.ventas_costo_incompleto) {
+      const a = el("div", "aviso-falta");
+      a.append(el("b", null, "Rentabilidad provisional: "), document.createTextNode(
+        r.ventas_costo_incompleto + (r.ventas_costo_incompleto === 1 ? " venta tiene" : " ventas tienen") + " productos con costo incompleto (" +
+        r.productos_costo_incompleto.join(", ") + "). El costo real es más alto: completá sus recetas en Productos."));
+      box.appendChild(a);
+    }
+
+    // Detalle en el orden de las fórmulas, cada concepto por separado.
+    const tabla = el("table", "res-tabla");
+    const fila = (k, v, cls) => { const tr = el("tr", cls || ""); tr.append(el("td", null, k), el("td", "r num", v)); tabla.appendChild(tr); };
+    fila("Ventas brutas (precio de lista)", fmtPesos(r.ventas_brutas));
+    if (r.descuentos) fila("− Descuentos", fmtPesos(r.descuentos));
+    fila("= Ventas netas", fmtPesos(r.ventas_netas), "tot");
+    fila("− Costo de mercadería vendida", fmtPesos(r.costo_mercaderia));
+    fila("= Margen bruto", fmtPesos(r.margen_bruto), "tot");
+    if (r.envios_cobrados) fila("+ Envíos cobrados aparte", fmtPesos(r.envios_cobrados));
+    fila("− Gastos fijos estimados (" + r.unidades + " productos × " + fmtPesos(r.gasto_fijo_por_unidad) + ")", fmtPesos(r.gastos_fijos_estimados));
+    fila("− Nafta estimada (" + r.pedidos_con_envio + (r.pedidos_con_envio === 1 ? " pedido" : " pedidos") + " × " + fmtPesos(r.nafta_por_pedido) + ")", fmtPesos(r.nafta_estimada));
+    fila("= Resultado estimado", fmtPesos(r.resultado_estimado), "tot hl");
+    box.appendChild(tabla);
+
+    const medios = Object.entries(r.por_medio || {}).map(([m, v]) => (MEDIOS[m] || m) + " " + fmtPesos(v)).join(" · ");
+    box.appendChild(el("p", "hint", "Cobrado: " + fmtPesos(r.total_cobrado) + (medios ? " (" + medios + ")" : "") + "." +
+      (r.envio_incluido_en_precios ? " De las ventas, " + fmtPesos(r.envio_incluido_en_precios) + " es envío incluido en los precios." : "")));
+
+    const tp = el("table", "res-prod");
+    tp.innerHTML = "<thead><tr><th>Producto</th><th class='r'>Cant.</th><th class='r'>Ventas</th><th class='r'>Costo</th><th class='r'>Margen</th></tr></thead>";
+    const tb = el("tbody");
+    r.por_producto.forEach((x) => {
+      const tr = el("tr");
+      const nm = el("td", null, x.nombre);
+      if (x.costo_incompleto) nm.append(" ", el("span", "tag falta", "costo incompleto"));
+      tr.append(nm, el("td", "r num", String(x.cantidad)), el("td", "r num", fmtPesos(x.ventas)), el("td", "r num", fmtPesos(x.costo)), el("td", "r num", fmtPesos(x.margen)));
+      tb.appendChild(tr);
+    });
+    tp.appendChild(tb);
+    const wrap = el("div", "tbl-wrap"); wrap.appendChild(tp);
+    box.appendChild(wrap);
+    box.appendChild(el("p", "hint", "Es una estimación, no la ganancia contable: no descuenta impuestos ni gastos del día que todavía no cargaste. Los descuentos se restan del total, no de cada producto."));
   }
 
   function renderVentas() {

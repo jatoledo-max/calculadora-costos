@@ -109,3 +109,12 @@ test("gastos fijos y delivery", () => {
   assert.equal(C.naftaPorPedido(), 250);
   assert.equal(C.precioSugerido(3118.42, 35, 1000), 5800); // 3118,42 ÷ 0,65 = 4797,57 + 1000 = 5797,57 → $5.800
 });
+
+test("una promo cuenta como los productos que lleva (para gastos fijos)", () => {
+  assert.equal(C.unidadesDe(estado.productos.lomito), 1);
+  assert.equal(C.unidadesDe(estado.productos.promo3), 3);
+  assert.equal(C.unidadesDe(estado.productos.promo2), 2);
+  assert.equal(C.costoParaVenta("promo3").unidades, 3);
+  assert.equal(C.costoParaVenta("lomito").unidades, 1);
+  assert.equal(C.unidadesDe(estado.productos.bucle) >= 1, true);
+});

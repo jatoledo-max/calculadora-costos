@@ -79,6 +79,9 @@ create table if not exists public.venta_items (
   primary key (venta_id, renglon)
 );
 
+-- Fase 3: cuántos productos cuenta cada unidad vendida (una promo de 3 lomitos cuenta 3), para repartir gastos fijos.
+alter table public.venta_items add column if not exists unidades int not null default 1 check (unidades between 1 and 999);
+
 create table if not exists public.venta_pagos (
   venta_id uuid not null references public.ventas (id) on delete cascade,
   medio text not null,
@@ -193,6 +196,7 @@ declare
   precio numeric(12,2);
   costo numeric(12,2);
   pack numeric(12,2);
+  unid int;
   v_bruto numeric(12,2) := 0;
   costo_total numeric(12,2) := 0;
   incompleto boolean := false;
@@ -258,15 +262,17 @@ begin
     costo := round(coalesce((it->>'costo_unitario')::numeric, 0), 2);
     pack := round(coalesce((it->>'packaging_unitario')::numeric, 0), 2);
     if costo < 0 or pack < 0 or pack > costo then raise exception 'Costo inválido para %.', prod->>'nombre'; end if;
+    unid := coalesce(round((it->>'unidades')::numeric)::int, 1);
+    if unid < 1 or unid > 999 then unid := 1; end if;
 
     insert into public.venta_items (venta_id, renglon, producto_id, opcion_id, nombre, tipo, categoria, cantidad,
-      precio_unitario, envio_incluido_unitario, costo_unitario, packaging_unitario, costo_incompleto, faltas)
+      precio_unitario, envio_incluido_unitario, costo_unitario, packaging_unitario, costo_incompleto, faltas, unidades)
     values (p_id, n, it->>'producto', nullif(it->>'opcion', ''),
       coalesce(prod->>'nombre', '(sin nombre)') || coalesce(' (' || (op->>'nombre') || ')', ''),
       coalesce(nullif(prod->>'tipo', ''), 'producto'), nullif(prod->>'categoria', ''), cant, precio,
       round(greatest(coalesce(nullif(prod->>'envioIncluido', '')::numeric, 0), 0), 2), costo, pack,
       coalesce((it->>'costo_incompleto')::boolean, false),
-      coalesce((select array_agg(x) from jsonb_array_elements_text(coalesce(it->'faltas', '[]'::jsonb)) x), '{}'));
+      coalesce((select array_agg(x) from jsonb_array_elements_text(coalesce(it->'faltas', '[]'::jsonb)) x), '{}'), unid);
 
     v_bruto := v_bruto + precio * cant;
     costo_total := costo_total + costo * cant;
@@ -299,6 +305,90 @@ begin
   returning * into v;
   return jsonb_build_object('id', v.id, 'numero', v.numero, 'total', v.total, 'duplicada', false);
 end $$;
+
+-- Resumen de una caja: ventas, costo de mercadería, margen y resultado estimado.
+-- Lo usa la pantalla para mostrar cómo va la noche, y lo va a usar el cierre para guardar la foto del informe.
+-- Fórmulas (ver venutto-caja/fase-1-diseno.md, sección 7):
+--   ventas netas = ventas brutas − descuentos (el cargo de envío va aparte)
+--   margen bruto = ventas netas − costo de mercadería vendida (insumos + packaging, foto de cada venta)
+--   resultado estimado = margen bruto + envíos cobrados − gastos fijos estimados − nafta estimada
+create or replace function public.resumen_caja(p_caja_id uuid)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare
+  neg uuid := public.caja_mi_negocio();
+  c public.cajas;
+  r jsonb;
+  total_fijos numeric;
+  unidades_mes numeric;
+  fijo_u numeric(12,2) := 0;
+  nafta_p numeric(12,2) := 0;
+  d jsonb;
+begin
+  select * into c from public.cajas where id = p_caja_id and negocio_id = neg;
+  if not found then raise exception 'No se encontró la caja.'; end if;
+
+  -- Gastos fijos por producto y nafta por pedido, con los valores cargados hoy en la calculadora.
+  select sum(coalesce(nullif(datos->>'monto', '')::numeric, 0)) into total_fijos from public.gastos where negocio_id = neg;
+  select nullif(datos->>'unidadesMes', '')::numeric into unidades_mes from public.ajustes where negocio_id = neg and id = 'general';
+  if coalesce(unidades_mes, 0) > 0 then fijo_u := round(coalesce(total_fijos, 0) / unidades_mes, 2); end if;
+  select datos into d from public.ajustes where negocio_id = neg and id = 'delivery';
+  if coalesce(nullif(d->>'pedidosMes', '')::numeric, 0) > 0 then
+    nafta_p := round(coalesce(nullif(d->>'naftaMes', '')::numeric, 0) / (d->>'pedidosMes')::numeric, 2);
+  end if;
+
+  with v as (select * from public.ventas where caja_id = c.id and estado = 'confirmada'),
+       it as (select i.* from public.venta_items i join v on v.id = i.venta_id),
+       base as (
+         select (select count(*) from v) as ventas,
+                coalesce((select sum(bruto) from v), 0) as bruto,
+                coalesce((select sum(descuento) from v), 0) as descuentos,
+                coalesce((select sum(cargo_envio) from v), 0) as envios,
+                coalesce((select sum(total) from v), 0) as cobrado,
+                (select count(*) from v where con_envio) as pedidos_envio,
+                (select count(*) from v where costo_incompleto) as incompletas,
+                coalesce((select sum(costo_unitario * cantidad) from it), 0) as cmv,
+                coalesce((select sum(packaging_unitario * cantidad) from it), 0) as packaging,
+                coalesce((select sum(envio_incluido_unitario * cantidad) from it), 0) as envio_incluido,
+                coalesce((select sum(unidades * cantidad) from it), 0) as unidades)
+  select jsonb_build_object(
+    'caja', c.id, 'numero', c.numero, 'fecha_operacion', c.fecha_operacion, 'estado', c.estado,
+    'ventas', b.ventas,
+    'ventas_brutas', b.bruto,
+    'descuentos', b.descuentos,
+    'ventas_netas', b.bruto - b.descuentos,
+    'envios_cobrados', b.envios,
+    'total_cobrado', b.cobrado,
+    'costo_mercaderia', b.cmv,
+    'packaging', b.packaging,
+    'margen_bruto', b.bruto - b.descuentos - b.cmv,
+    'margen_pct', case when b.bruto - b.descuentos > 0 then round((b.bruto - b.descuentos - b.cmv) * 100 / (b.bruto - b.descuentos), 1) end,
+    'envio_incluido_en_precios', b.envio_incluido,
+    'unidades', b.unidades,
+    'gasto_fijo_por_unidad', fijo_u,
+    'gastos_fijos_estimados', fijo_u * b.unidades,
+    'pedidos_con_envio', b.pedidos_envio,
+    'nafta_por_pedido', nafta_p,
+    'nafta_estimada', nafta_p * b.pedidos_envio,
+    'resultado_estimado', b.bruto - b.descuentos - b.cmv + b.envios - fijo_u * b.unidades - nafta_p * b.pedidos_envio,
+    'ventas_costo_incompleto', b.incompletas,
+    'productos_costo_incompleto', coalesce((select jsonb_agg(distinct nombre) from it where costo_incompleto), '[]'::jsonb),
+    'por_producto', coalesce((
+      select jsonb_agg(x order by (x->>'ventas')::numeric desc) from (
+        select jsonb_build_object('nombre', nombre, 'cantidad', sum(cantidad), 'ventas', sum(precio_unitario * cantidad),
+                 'costo', sum(costo_unitario * cantidad), 'margen', sum((precio_unitario - costo_unitario) * cantidad),
+                 'costo_incompleto', bool_or(costo_incompleto)) as x
+        from it group by nombre) t), '[]'::jsonb),
+    'por_medio', coalesce((
+      select jsonb_object_agg(medio, total) from (
+        select p.medio, sum(p.importe) as total from public.venta_pagos p join v on v.id = p.venta_id group by p.medio) t), '{}'::jsonb),
+    'anuladas', (select count(*) from public.ventas where caja_id = c.id and estado = 'anulada')
+  ) into r
+  from base b;
+  return r;
+end $$;
+
+revoke all on function public.resumen_caja(uuid) from public, anon;
+grant execute on function public.resumen_caja(uuid) to authenticated;
 
 revoke all on function public.caja_mi_negocio() from public, anon;
 revoke all on function public.abrir_caja(uuid, numeric) from public, anon;

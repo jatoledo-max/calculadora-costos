@@ -22,6 +22,10 @@ insert into public.negocios (id, owner_id, nombre) values
 insert into public.negocios (id, owner_id, nombre, prueba_hasta) values
   ('c0000000-0000-0000-0000-00000000000c', 'cccccccc-0000-0000-0000-000000000003', 'Vencido', now() - interval '1 day');
 
+insert into public.gastos (negocio_id, id, datos) values ('a0000000-0000-0000-0000-00000000000a', 'limpieza', '{"nombre":"Limpieza","monto":7000}');
+insert into public.ajustes (negocio_id, id, datos) values
+  ('a0000000-0000-0000-0000-00000000000a', 'general', '{"unidadesMes":120}'),
+  ('a0000000-0000-0000-0000-00000000000a', 'delivery', '{"naftaMes":20000,"pedidosMes":80}');
 insert into public.productos (negocio_id, id, datos) values
   ('a0000000-0000-0000-0000-00000000000a', 'lomito', '{"nombre":"Lomito completo","tipo":"producto","categoria":"Lomitos","precioVenta":10000,"envioIncluido":1000,
      "opciones":[{"id":"arabe","nombre":"pan árabe","reemplaza":"pan-frances","por":"pan-arabe","precioExtra":100}]}'),
@@ -89,7 +93,7 @@ do $$
 declare r jsonb; v record;
 begin
   r := public.confirmar_venta('11111111-0000-0000-0000-000000000002',
-    '[{"producto":"promo3","cantidad":1,"costo_unitario":15600,"precio_unitario":1}]',
+    '[{"producto":"promo3","cantidad":1,"costo_unitario":15600,"precio_unitario":1,"unidades":3}]',
     '[{"medio":"transferencia","importe":20000},{"medio":"efectivo","importe":8000}]', 0, null, 1000, true);
   select * into v from public.ventas where id = '11111111-0000-0000-0000-000000000002';
   if v.numero <> 2 or v.bruto <> 27000 or v.cargo_envio <> 1000 or v.total <> 28000 or not v.con_envio then raise exception 'venta 2: %', to_jsonb(v); end if;
@@ -156,6 +160,27 @@ do $$ begin
   if (select count(*) from public.ventas) <> 4 then raise exception 'A debería tener 4 ventas, tiene %', (select count(*) from public.ventas); end if;
 end $$;
 
+-- Resumen de la caja (Fase 3). Cuentas a mano:
+-- ventas brutas 10.500 + 27.000 + 20.200 + 10.000 = 67.700; descuentos 1.000; netas 66.700; envíos 1.000
+-- costo de mercadería 5.200 + 150 + 15.600 + 2 × 5.300 + 5.200 = 36.750; margen bruto 29.950
+-- unidades 1 + 1 + 3 (promo) + 2 + 1 = 8; gasto fijo 7.000 / 120 = 58,33 → 466,64; nafta 20.000 / 80 = 250 × 1 pedido
+-- resultado = 29.950 + 1.000 − 466,64 − 250 = 30.233,36
+do $$
+declare r jsonb;
+begin
+  r := public.resumen_caja('22222222-0000-0000-0000-000000000001');
+  if (r->>'ventas')::int <> 4 then raise exception 'resumen ventas: %', r; end if;
+  if (r->>'ventas_brutas')::numeric <> 67700 or (r->>'descuentos')::numeric <> 1000 or (r->>'ventas_netas')::numeric <> 66700 then raise exception 'resumen ventas netas: %', r; end if;
+  if (r->>'envios_cobrados')::numeric <> 1000 or (r->>'total_cobrado')::numeric <> 67700 then raise exception 'resumen cobrado: %', r; end if;
+  if (r->>'costo_mercaderia')::numeric <> 36750 or (r->>'margen_bruto')::numeric <> 29950 then raise exception 'resumen margen: %', r; end if;
+  if (r->>'unidades')::int <> 8 or (r->>'gasto_fijo_por_unidad')::numeric <> 58.33 or (r->>'gastos_fijos_estimados')::numeric <> 466.64 then raise exception 'resumen fijos: %', r; end if;
+  if (r->>'nafta_estimada')::numeric <> 250 or (r->>'resultado_estimado')::numeric <> 30233.36 then raise exception 'resumen resultado: %', r; end if;
+  if (r->'por_medio'->>'efectivo')::numeric <> 27500 or (r->'por_medio'->>'transferencia')::numeric <> 40200 then raise exception 'resumen medios: %', r; end if;
+  if (r->>'ventas_costo_incompleto')::int <> 1 or r->'productos_costo_incompleto' <> '["Pote de mayonesa"]'::jsonb then raise exception 'resumen incompletos: %', r; end if;
+  if (r->>'envio_incluido_en_precios')::numeric <> 5000 then raise exception 'resumen envío incluido: %', r; end if;
+  if r->'por_producto'->0->>'nombre' <> 'Promo 3 lomitos' or (r->'por_producto'->0->>'margen')::numeric <> 11400 then raise exception 'resumen por producto: %', r->'por_producto'; end if;
+end $$;
+
 -- ---------- Usuario B: no ve ni toca lo de A ----------
 select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-0000-0000-000000000002', false);
 do $$ begin
@@ -167,6 +192,7 @@ end $$;
 select public.abrir_caja('33333333-0000-0000-0000-000000000001', 0);
 select pg_temp.espera_error($q$select public.confirmar_venta('11111111-0000-0000-0000-000000000001',
   '[{"producto":"lomito","cantidad":1,"costo_unitario":1}]', '[{"medio":"efectivo","importe":10000}]')$q$, 'Id de venta inválido');
+select pg_temp.espera_error($q$select public.resumen_caja('22222222-0000-0000-0000-000000000001')$q$, 'No se encontró la caja');
 -- B no puede vender productos de A.
 select pg_temp.espera_error($q$select public.confirmar_venta(gen_random_uuid(),
   '[{"producto":"lomito","cantidad":1,"costo_unitario":1}]', '[{"medio":"efectivo","importe":10000}]')$q$, 'ya no existe');

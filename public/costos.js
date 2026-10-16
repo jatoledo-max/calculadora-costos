@@ -65,6 +65,15 @@ export function crearCostos(estado) {
     return { total, packaging, filas, faltas };
   }
 
+  // Cuántos productos "cuenta" uno: 1, salvo las promos, que suman los productos que llevan
+  // (la promo de 3 lomitos son 3). Sirve para repartir los gastos fijos por producto vendido.
+  function unidadesDe(p, depth) {
+    depth = depth || 0;
+    const prods = (p && p.items || []).filter((it) => it.producto && estado.productos[it.producto]);
+    if (!prods.length || depth >= 5) return 1;
+    return prods.reduce((a, it) => a + (Number(it.cantidad) || 0) * unidadesDe(estado.productos[it.producto], depth + 1), 0) || 1;
+  }
+
   // Opciones de un producto (por ejemplo "Pan árabe"): cambian un insumo de la receta por otro.
   const opcionDe = (p, opcionId) => (opcionId && p && (p.opciones || []).find((o) => o.id === opcionId)) || null;
   function costoConOpcion(p, opcionId) {
@@ -80,7 +89,7 @@ export function crearCostos(estado) {
     const r = costoConOpcion(p, opcionId);
     const faltas = r.faltas.slice();
     if (!(p.items || []).length) faltas.push("la receta de " + (p.nombre || "este producto"));
-    return { costo_unitario: redondear(r.total), packaging_unitario: redondear(r.packaging), costo_incompleto: faltas.length > 0, faltas };
+    return { costo_unitario: redondear(r.total), packaging_unitario: redondear(r.packaging), costo_incompleto: faltas.length > 0, faltas, unidades: Math.max(1, Math.round(unidadesDe(p))) };
   }
 
   // El envío incluido en el precio se suma aparte: no lleva margen porque es para pagar el delivery.
@@ -102,7 +111,7 @@ export function crearCostos(estado) {
   const envioIncl = (p) => (p && !p.esPreparacion ? Math.max(Number(p.envioIncluido) || 0, 0) : 0);
 
   return {
-    rendimiento, merma, costoUso, itemInfo, costoProducto, opcionDe, costoConOpcion, costoParaVenta,
+    rendimiento, merma, costoUso, itemInfo, costoProducto, unidadesDe, opcionDe, costoConOpcion, costoParaVenta,
     precioSugerido, margenReal, totalFijos, unidadesMes, fijoPorUnidad, delivery, naftaPorPedido, envioIncl,
   };
 }

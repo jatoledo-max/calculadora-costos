@@ -114,6 +114,30 @@ const capturas = process.argv[2];
   assert.equal(await p.locator(".venta").count(), 5);
   await paso("4-ventas");
 
+  // 8b. Resumen de la caja: lo esperado se calcula con los mismos módulos de la app sobre los datos de ejemplo.
+  const esperado = await p.evaluate(async (d) => {
+    const { crearCostos } = await import("/costos.js");
+    const { fmtPesos } = await import("/dinero.js");
+    const C = crearCostos(d);
+    const linea = (id, op, n) => C.costoParaVenta(id, op).costo_unitario * n;
+    const cmv = Math.round((linea("p1", null, 1) + linea("p5", null, 1) + linea("p3", null, 1) + linea("p1", "arabe", 2) + linea("p2", null, 2)) * 100) / 100;
+    const netas = 73700 - 800;
+    const unidades = 1 + 1 + 3 + 2 + 2;                    // la promo cuenta 3
+    const fijos = Math.round((7000 / 120) * 100) / 100 * unidades;
+    const resultado = netas - cmv + 1000 - fijos - 250;    // 1 pedido con envío, nafta 20.000 / 80
+    const r = (x) => fmtPesos(Math.round(x)); // los cuadros grandes van redondeados a pesos
+    return { netas: r(netas), cmv: r(cmv), margen: r(netas - cmv), resultado: r(resultado), unidades };
+  }, datos);
+  const kpi = (k) => p.locator(".res-kpi").filter({ has: p.locator(".k", { hasText: new RegExp("^" + k + "$") }) }).locator(".v").textContent();
+  await p.waitForSelector(".res-kpi");
+  assert.equal(await kpi("Ventas netas"), esperado.netas);
+  assert.equal(await kpi("Costo de mercadería"), esperado.cmv);
+  assert.equal(await kpi("Margen bruto"), esperado.margen);
+  assert.equal(await kpi("Resultado estimado"), esperado.resultado);
+  assert.match(await p.textContent(".res-tabla"), new RegExp(esperado.unidades + " productos"));
+  assert.doesNotMatch(await p.textContent(".caja-resumen"), /Rentabilidad provisional/); // todo lo vendido tiene receta completa
+  if (capturas) { await p.locator("#caja-resumen").scrollIntoViewIfNeeded(); await paso("5-resumen"); }
+
   // 9. Al recargar la página la caja sigue abierta con sus ventas.
   await p.reload();
   await p.click("#tab-caja");

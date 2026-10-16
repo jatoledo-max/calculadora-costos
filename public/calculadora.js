@@ -36,7 +36,7 @@ export function iniciarCalculadora(s) {
 
   // ---------- Cálculos (en costos.js, compartidos con la caja) ----------
   const costos = crearCostos(state);
-  const { rendimiento, merma, costoUso, itemInfo, costoProducto, costoConOpcion, precioSugerido, margenReal,
+  const { rendimiento, merma, costoUso, itemInfo, costoProducto, unidadesDe, costoConOpcion, precioSugerido, margenReal,
     totalFijos, unidadesMes, fijoPorUnidad, delivery, naftaPorPedido, envioIncl } = costos;
   const alCambiar = []; // otras pestañas (la caja) que se redibujan cuando cambian los datos
   const porUnidadTxt = (p, total) => {
@@ -82,7 +82,7 @@ export function iniciarCalculadora(s) {
         el.appendChild(h);
       }
       const { total: tIns, faltas: fl } = costoProducto(p);
-      const total = p.esPreparacion ? tIns : tIns + fijoPorUnidad();
+      const total = p.esPreparacion ? tIns : tIns + fijoPorUnidad() * unidadesDe(p);
       const pv = Number(p.precioVenta) || 0;
       const env = envioIncl(p);
       const m = margenReal(total, pv - env);
@@ -114,7 +114,7 @@ export function iniciarCalculadora(s) {
     if (!p) { el.innerHTML = ""; return; }
     const id = state.sel;
     const { total, packaging, filas, faltas } = costoProducto(p);
-    const fijo = fijoPorUnidad();
+    const fijo = p.esPreparacion ? 0 : fijoPorUnidad() * unidadesDe(p);
     const costoTotal = total + fijo;
     const margen = p.margen ?? margenDefault();
     const env = envioIncl(p);
@@ -124,7 +124,7 @@ export function iniciarCalculadora(s) {
     const mr = margenReal(costoTotal, ingreso);
     const desglose = [fmt(total - packaging) + " de insumos"];
     if (packaging) desglose.push(fmt(packaging) + " de packaging");
-    if (fijo) desglose.push(fmt(fijo) + " de gastos fijos");
+    if (fijo) desglose.push(fmt(fijo) + " de gastos fijos" + (unidadesDe(p) > 1 ? " (cuenta como " + unidadesDe(p) + " productos)" : ""));
 
     el.innerHTML = `
       <div class="ficha sec">
