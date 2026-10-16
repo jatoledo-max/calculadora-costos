@@ -59,6 +59,7 @@
     <header class="top">
       <div class="logo-id"><img id="neg-logo-img" alt="" hidden><h1><span id="neg-titulo"></span> <small>Cuánto te cuesta cada producto y a cuánto venderlo</small></h1></div>
       <nav class="tabs" role="tablist">
+        <button id="tab-caja" role="tab" aria-selected="false" data-tab="caja">Caja</button>
         <button id="tab-productos" role="tab" aria-selected="true" data-tab="productos">Productos</button>
         <button id="tab-insumos" role="tab" aria-selected="false" data-tab="insumos">Insumos</button>
         <button id="tab-gastos" role="tab" aria-selected="false" data-tab="gastos">Gastos fijos</button>
@@ -70,6 +71,25 @@
   </div>
   <div class="wrap">
   <div class="status" id="status">Conectando…</div>
+
+  <section id="view-caja" data-view="caja" hidden>
+    <div id="caja-estado" class="caja-estado" role="status">Cargando la caja…</div>
+    <div id="caja-abrir" class="card caja-abrir" hidden>
+      <h2>Abrir la caja</h2>
+      <p class="hint">Contá el efectivo con el que arrancás (el cambio) y abrí la caja para empezar a vender.</p>
+      <label class="f">Efectivo al empezar ($)<input id="caja-saldo" class="n grande" type="number" min="0" step="any" inputmode="numeric" placeholder="0"></label>
+      <button class="btn primary grande" id="caja-btn-abrir" type="button">Abrir caja</button>
+      <p class="caja-msg-txt" id="caja-abrir-msg" role="alert"></p>
+    </div>
+    <div id="caja-pos" class="caja-pos" hidden>
+      <div class="caja-catalogo">
+        <div class="caja-cats" id="caja-cats" aria-label="Categorías"></div>
+        <div class="caja-prods" id="caja-prods"></div>
+      </div>
+      <aside class="caja-carrito card" id="caja-carrito" aria-label="Venta en curso"></aside>
+    </div>
+    <div id="caja-ventas" class="card caja-ventas" hidden></div>
+  </section>
 
   <section id="view-productos" data-view="productos">
     <div class="prod-layout">

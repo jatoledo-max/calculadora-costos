@@ -222,3 +222,80 @@ th.acc, td.acc { background: var(--glass-strong); backdrop-filter: blur(12px); -
 @media (max-width: 760px) { .brand { position: static; } }
 input, select { border: 1px solid rgba(19,19,19,.2); background: rgba(255,255,255,.8); }
 :root[data-theme="dark"] input, :root[data-theme="dark"] select { border-color: rgba(255,255,255,.2); }
+/* Caja: botones grandes para usar con una mano mientras se cocina */
+.caja-estado { margin-top: 14px; padding: 12px 16px; border-radius: 16px; font-size: 0.95rem; background: var(--glass); border: 1px solid var(--glass-edge); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+.caja-estado.abierta { border-color: color-mix(in srgb, var(--good) 60%, transparent); }
+.caja-estado.abierta .punto { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--good); margin-right: 8px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--good) 25%, transparent); }
+.caja-estado.cerrada { color: var(--muted); }
+.caja-estado.mal { border-color: var(--bad); color: var(--bad); }
+.caja-abrir { max-width: 420px; display: grid; gap: 14px; margin-top: 14px; padding: 18px; }
+input.n.grande { width: 100%; font-size: 1.6rem; padding: 10px 12px; }
+button.btn.grande { font-size: 1.1rem; padding: 16px; min-height: 56px; }
+.caja-msg-txt { color: var(--bad); margin: 0; min-height: 1em; }
+.caja-pos { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 18px; margin-top: 14px; align-items: start; }
+.caja-cats { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; }
+.chip-cat { flex: none; font: 600 0.95rem var(--f-body); min-height: 44px; padding: 8px 16px; border-radius: 999px; border: 1px solid var(--glass-edge); background: var(--glass); color: var(--ink); cursor: pointer; }
+.chip-cat[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); box-shadow: 0 4px 14px rgba(242,116,5,.4); }
+.caja-prods { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 8px; }
+.pbtn { display: grid; gap: 4px; align-content: space-between; min-height: 92px; text-align: left; padding: 12px; border-radius: 18px; border: 1px solid var(--glass-edge); background: var(--glass-strong); box-shadow: var(--glass-shadow); color: var(--ink); font: inherit; cursor: pointer; touch-action: manipulation; }
+.pbtn:active:not(:disabled) { transform: scale(.97); background: var(--accent-soft); }
+.pbtn:disabled { opacity: .5; cursor: not-allowed; }
+.pbtn .nm { font-weight: 700; font-size: 1rem; line-height: 1.2; }
+.pbtn .pr { font-size: 1.05rem; color: var(--accent-text); font-weight: 700; }
+.pbtn .mas { font-size: 0.72rem; color: var(--muted); }
+.pbtn-opciones { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding: 10px; border-radius: 18px; border: 2px solid var(--accent); background: var(--glass); }
+.pbtn-op-t { grid-column: 1 / -1; font-weight: 700; }
+.pbtn.op { min-height: 64px; font-weight: 700; }
+.caja-carrito { padding: 14px; display: grid; gap: 12px; position: sticky; top: 90px; }
+.caja-msg { padding: 10px 12px; border-radius: 12px; font-weight: 600; }
+.caja-msg.ok { background: color-mix(in srgb, var(--good) 18%, var(--surface)); border: 1px solid var(--good); }
+.caja-msg.mal { background: color-mix(in srgb, var(--bad) 12%, var(--surface)); border: 1px solid var(--bad); color: var(--bad); }
+.lineas { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.linea { display: grid; grid-template-columns: 40px 28px 40px minmax(0, 1fr) auto auto; align-items: center; gap: 6px; }
+.linea .qty { width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--glass-edge); background: var(--glass-strong); color: var(--ink); font-size: 1.2rem; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+.linea .cant { text-align: center; font-weight: 700; }
+.linea .nm { font-size: 0.92rem; line-height: 1.2; }
+.linea .sub { font-weight: 600; }
+.fila-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.fila-chips .k { font-size: 0.8rem; color: var(--muted); margin-right: 4px; }
+.fila-chips .chip { font: 600 0.82rem var(--f-body); min-height: 38px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--glass-edge); background: var(--glass-strong); color: var(--ink); cursor: pointer; }
+.fila-chips .chip[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.fila-chips input.n { width: 7em; }
+.fila-chips input.motivo { flex: 1; min-width: 10em; }
+.caja-total { display: flex; justify-content: space-between; align-items: baseline; border-top: 1px solid var(--line); padding-top: 10px; }
+.caja-total .k { font-weight: 700; text-transform: uppercase; letter-spacing: .06em; font-size: 0.85rem; }
+.caja-total .v { font-size: 1.9rem; font-weight: 800; }
+.pagos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pagos .pago { min-height: 60px; border-radius: 16px; border: 0; font: 800 1.05rem var(--f-body); cursor: pointer; touch-action: manipulation; }
+.pagos .pago:disabled { opacity: .6; cursor: progress; }
+.pago.efectivo, .pago.confirmar { background: var(--accent); color: var(--accent-ink); box-shadow: 0 6px 18px rgba(242,116,5,.4); }
+.pago.transferencia { background: var(--wine); color: #fff; box-shadow: 0 6px 18px rgba(142,31,47,.35); }
+.pago.dividir { grid-column: 1 / -1; min-height: 46px; background: var(--glass-strong); color: var(--ink); border: 1px solid var(--glass-edge); font-weight: 700; }
+.pagos.dividido { grid-template-columns: 1fr; }
+.pagos.dividido input.n { width: 100%; font-size: 1.3rem; }
+.pagos .resto { font-weight: 600; }
+.caja-ventas { margin-top: 18px; padding: 14px; }
+.ventas { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.venta { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 2px 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 0.9rem; }
+.venta .n { font-weight: 700; }
+.venta .h { color: var(--muted); }
+.venta .it { grid-column: 1 / -1; grid-row: 2; }
+.venta .md { grid-column: 3; grid-row: 1; color: var(--muted); font-size: 0.82rem; }
+.venta .t { grid-column: 4; grid-row: 1; font-weight: 700; }
+.venta.anulada { opacity: .55; text-decoration: line-through; }
+@media (max-width: 760px) {
+  .caja-pos { grid-template-columns: minmax(0, 1fr); }
+  .caja-prods { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* En el celular el carrito queda pegado abajo: total y cobro siempre a mano del pulgar */
+  .caja-carrito { position: sticky; top: auto; bottom: 8px; max-height: 55vh; overflow-y: auto; z-index: 3; background: var(--glass-strong); }
+}
+/* Calculadora: cómo aparece cada producto en la caja */
+.caja-conf { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: end; }
+.caja-conf label.chk { display: flex; gap: 8px; align-items: center; font-size: 0.88rem; padding-bottom: 8px; cursor: pointer; }
+.caja-conf label.chk input, .sinpack input { width: 18px; height: 18px; accent-color: var(--accent); }
+.sinpack { display: inline-flex; gap: 4px; align-items: center; font-size: 0.78rem; color: var(--muted); cursor: pointer; }
+.opciones { display: grid; gap: 6px; margin-block: 8px; }
+.opcion { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; padding: 6px 10px; border-radius: 12px; background: var(--glass-strong); border: 1px solid var(--glass-edge); }
+.opcion .nm { font-weight: 700; }
+.opcion .det { font-size: 0.85rem; color: var(--muted); flex: 1; }
+@media (max-width: 760px) { .caja-carrito.vacio { position: static; } }

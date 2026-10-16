@@ -1,6 +1,7 @@
 import { CONFIG } from "./config.js";
 import { iniciarCalculadora } from "./calculadora.js";
-import { localStore, supabaseStore } from "./stores.js";
+import { localStore, supabaseStore, localCaja, supabaseCaja } from "./stores.js";
+import { iniciarCaja } from "./caja.js";
 
 const $ = (s) => document.querySelector(s);
 const PANTALLAS = ["cargando", "login", "alta", "pago", "app"];
@@ -81,7 +82,8 @@ function arrancarDemo() {
   iniciarFormNegocio(neg, async (c) => { try { localStorage.setItem("costos-demo-negocio", JSON.stringify(Object.assign({}, neg, c))); } catch (e) {} });
   $("#btn-salir").hidden = true;
   mostrar("app");
-  iniciarCalculadora(localStore());
+  const calc = iniciarCalculadora(localStore());
+  iniciarCaja(calc, localCaja(calc.estado));
 }
 
 // ---------- Modo real (Supabase) ----------
@@ -165,7 +167,8 @@ async function arrancar() {
       $("#sub-estado").after(b);
     }
     mostrar("app");
-    iniciarCalculadora(supabaseStore(supabase, neg.id));
+    const calc = iniciarCalculadora(supabaseStore(supabase, neg.id));
+    iniciarCaja(calc, supabaseCaja(supabase));
   }
 
   // Pantalla de pago: al vencer la prueba, o desde la app si el negocio quiere suscribirse antes.
