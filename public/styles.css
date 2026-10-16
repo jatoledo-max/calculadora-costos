@@ -180,3 +180,7 @@ td.c input[type="checkbox"], .f-chk input { width: 18px; height: 18px; accent-co
 th.acc, td.acc { position: sticky; right: 0; background: var(--surface); box-shadow: -6px 0 6px -6px rgba(0,0,0,.25); }
 td.acc .btn.ghost { white-space: nowrap; }
 td.acc .btn.ghost[data-armed] { color: var(--bad); font-weight: 700; }
+/* Botón de borrar producto: rojo y con ícono, para que se encuentre fácil */
+button.btn.danger { display: inline-flex; align-items: center; gap: 6px; background: transparent; color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); font-size: 0.82rem; padding: 6px 10px; }
+button.btn.danger:hover { background: color-mix(in srgb, var(--bad) 10%, var(--surface)); border-color: var(--bad); }
+button.btn.danger[data-armed] { background: var(--bad); border-color: var(--bad); color: var(--surface); }

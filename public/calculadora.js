@@ -163,6 +163,7 @@ export function iniciarCalculadora(s) {
     });
   }
 
+  const ICON_BORRAR = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   function renderFicha() {
     const el = $("#ficha");
     const p = state.productos[state.sel];
@@ -189,7 +190,7 @@ export function iniciarCalculadora(s) {
           ${p.esPreparacion ? '<span class="tag prep">Preparación propia</span>' : ""}
           <span class="ficha-acc">
             <button class="btn ghost" id="f-tipo" type="button">${p.esPreparacion ? "Pasar a producto de venta" : "Pasar a preparación propia"}</button>
-            <button class="btn ghost" id="f-del" type="button">Borrar producto</button>
+            <button class="btn danger" id="f-del" type="button">${ICON_BORRAR}<span>Borrar producto</span></button>
           </span>
         </div>
         ${faltas.length ? `<div class="aviso-falta" role="alert"><b>Costo incompleto:</b> el costo da más bajo que el real porque falta cargar ${faltas.map((f) => "<span></span>").join(", ").replace(/, ([^,]*)$/, " y $1")}.</div>` : ""}
@@ -235,7 +236,7 @@ export function iniciarCalculadora(s) {
     $("#f-del").onclick = (ev) => {
       const b = ev.currentTarget;
       if (b.dataset.armed) { store.del("productos", id); state.sel = null; }
-      else { b.dataset.armed = "1"; b.textContent = "¿Seguro? Tocá de nuevo"; setTimeout(() => { if (b.isConnected) { delete b.dataset.armed; b.textContent = "Borrar producto"; } }, 3000); }
+      else { b.dataset.armed = "1"; b.lastChild.textContent = "¿Seguro? Tocá de nuevo"; setTimeout(() => { if (b.isConnected) { delete b.dataset.armed; b.lastChild.textContent = "Borrar producto"; } }, 3000); }
     };
 
     const tb = $("#f-items");
@@ -446,6 +447,8 @@ export function iniciarCalculadora(s) {
     $("#newprod-prep").checked = false;
     render();
     store.set("productos", id, state.productos[id]);
+    // En el celular la ficha queda debajo del listado: llevar la vista al producto nuevo, donde está el botón de borrar
+    if (matchMedia("(max-width: 760px)").matches) $("#ficha").scrollIntoView({ behavior: "smooth", block: "start" });
   };
   $("#newins").onsubmit = (e) => {
     e.preventDefault();
