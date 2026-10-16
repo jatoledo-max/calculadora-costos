@@ -184,3 +184,41 @@ td.acc .btn.ghost[data-armed] { color: var(--bad); font-weight: 700; }
 button.btn.danger { display: inline-flex; align-items: center; gap: 6px; background: transparent; color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); font-size: 0.82rem; padding: 6px 10px; }
 button.btn.danger:hover { background: color-mix(in srgb, var(--bad) 10%, var(--surface)); border-color: var(--bad); }
 button.btn.danger[data-armed] { background: var(--bad); border-color: var(--bad); color: var(--surface); }
+/* Diseño glassmorfismo: fondo con manchas de color de la marca y paneles de vidrio esmerilado encima */
+:root { --glass: rgba(255,255,255,.55); --glass-strong: rgba(255,255,255,.72); --glass-edge: rgba(255,255,255,.75); --glass-shadow: 0 8px 32px rgba(70,30,10,.14); --line: rgba(19,19,19,.12); --surface: rgba(255,255,255,.6); }
+:root[data-theme="dark"] { --glass: rgba(30,26,24,.45); --glass-strong: rgba(36,31,29,.62); --glass-edge: rgba(255,255,255,.14); --glass-shadow: 0 8px 32px rgba(0,0,0,.45); --line: rgba(255,255,255,.12); --surface: rgba(40,35,32,.55); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --glass: rgba(30,26,24,.45); --glass-strong: rgba(36,31,29,.62); --glass-edge: rgba(255,255,255,.14); --glass-shadow: 0 8px 32px rgba(0,0,0,.45); --line: rgba(255,255,255,.12); --surface: rgba(40,35,32,.55); } }
+body { background:
+  radial-gradient(40vw 40vw at 8% 18%, rgba(242,116,5,.55), transparent 70%),
+  radial-gradient(38vw 38vw at 92% 30%, rgba(142,31,47,.45), transparent 70%),
+  radial-gradient(45vw 35vw at 55% 95%, rgba(242,160,60,.40), transparent 70%),
+  var(--bg); background-attachment: fixed; }
+.brand { background: rgba(19,19,19,.72); backdrop-filter: blur(18px) saturate(140%); -webkit-backdrop-filter: blur(18px) saturate(140%); border-bottom: 1px solid rgba(255,255,255,.12); box-shadow: 0 2px 0 rgba(142,31,47,.8); position: sticky; top: 0; z-index: 5; }
+.brand nav.tabs { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); border-radius: 14px; }
+.brand nav.tabs button { border-radius: 10px; }
+.brand nav.tabs button[aria-selected="true"] { box-shadow: 0 4px 14px rgba(242,116,5,.45); }
+.btn-tema { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); border-radius: 12px; }
+.ficha, .card, .newprod, .pitem, .kpi, .aviso-falta, .banner {
+  background: var(--glass); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(20px) saturate(150%); -webkit-backdrop-filter: blur(20px) saturate(150%); }
+.ficha, .card { border-radius: 22px; }
+.newprod { border-radius: 18px; border-top: 1px solid var(--glass-edge); background: linear-gradient(160deg, rgba(242,116,5,.22), var(--glass) 55%); }
+.pitem { border-radius: 16px; }
+.pitem[aria-current="true"] { background: var(--glass-strong); border-color: rgba(242,116,5,.7); box-shadow: inset 4px 0 0 var(--accent), 0 8px 28px rgba(242,116,5,.25); }
+.pitem.prep { background: linear-gradient(160deg, rgba(142,31,47,.16), var(--glass) 60%); border-color: rgba(142,31,47,.35); }
+.kpi { border-radius: 16px; background: var(--glass-strong); box-shadow: none; }
+.kpi.hl { background: linear-gradient(150deg, rgba(242,116,5,.85), rgba(242,116,5,.55)); border-color: rgba(255,255,255,.5); color: #160d05; box-shadow: 0 10px 30px rgba(242,116,5,.35); }
+.kpi.hl .k, .kpi.hl .note { color: rgba(22,13,5,.8); }
+.sec-t { border-bottom: 0; padding-bottom: 0; }
+input, select { background: rgba(255,255,255,.55); border: 1px solid var(--glass-edge); border-radius: 10px; }
+:root[data-theme="dark"] input, :root[data-theme="dark"] select { background: rgba(0,0,0,.25); }
+button.btn { border-radius: 12px; }
+button.btn.primary { box-shadow: 0 6px 18px rgba(242,116,5,.4); }
+button.btn.danger { background: rgba(255,255,255,.3); border-radius: 12px; }
+.ticket { border-top: 1px solid var(--line); }
+td, th { border-bottom-color: var(--line); }
+th.acc, td.acc { background: var(--glass-strong); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: none; }
+.brand { background: rgba(19,19,19,.86); }
+@media (max-width: 760px) { .brand { position: static; } }
+input, select { border: 1px solid rgba(19,19,19,.2); background: rgba(255,255,255,.8); }
+:root[data-theme="dark"] input, :root[data-theme="dark"] select { border-color: rgba(255,255,255,.2); }
