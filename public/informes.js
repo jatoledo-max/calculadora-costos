@@ -34,6 +34,27 @@ const fechaHora = (iso) => {
 };
 const csv = (cab, filas) => "﻿" + [cab.join(";"), ...filas.map((f) => f.join(";"))].join("\r\n") + "\r\n";
 
+// Ventas netas y resultado de cada día del período, para el gráfico. Si el período es de hasta dos meses van todos los días
+// (hasta hoy), también los que no abriste, para ver los huecos; si es más largo, solo los días con caja.
+export function ventasPorDia(cerradas, desde, hasta, hoy) {
+  const porDia = {};
+  cerradas.forEach((c) => {
+    const d = porDia[c.fecha_operacion] || (porDia[c.fecha_operacion] = { fecha: c.fecha_operacion, ventas: 0, resultado: 0 });
+    d.ventas += Math.round(Number(c.resumen.ventas_netas) * 100); d.resultado += Math.round(Number(c.resumen.resultado_estimado) * 100);
+  });
+  const fin = hasta < hoy ? hasta : hoy;
+  const dias = [];
+  const [a, m, d] = desde.split("-").map(Number);
+  for (let i = 0; i <= 62; i++) {
+    const f = new Date(Date.UTC(a, m - 1, d + i)).toISOString().slice(0, 10);
+    if (f > fin) break;
+    if (i === 62) { dias.length = 0; break; } // período largo: solo los días con caja
+    dias.push(porDia[f] || { fecha: f, ventas: 0, resultado: 0 });
+  }
+  const lista = dias.length ? dias : Object.values(porDia).sort((x, y) => x.fecha.localeCompare(y.fecha));
+  return lista.map((x) => ({ fecha: x.fecha, ventas: x.ventas / 100, resultado: x.resultado / 100 }));
+}
+
 export function csvCierres(cajas) {
   const cab = ["Caja", "Fecha", "Estado", "Abierta", "Cerrada", "Ventas", "Ventas netas", "Costo de mercadería", "Margen bruto", "Envíos cobrados",
     "Gastos del día", "Gastos fijos estimados", "Nafta estimada", "Resultado estimado", "Efectivo al abrir", "Efectivo esperado", "Efectivo contado",
@@ -239,7 +260,7 @@ export function iniciarInformes(calc, backend, caja) {
     const lista = cerradas();
     if (st.cajas.some((c) => c.estado === "abierta")) box.appendChild(el("p", "hint", "La caja abierta no entra en la suma hasta que la cierres."));
     if (!lista.length) { box.appendChild(el("p", "empty", "No hay cajas cerradas en estas fechas.")); return; }
-    pintarInforme(box, sumarInformes(lista.map((c) => c.resumen)));
+    pintarInforme(box, sumarInformes(lista.map((c) => c.resumen)), { dias: ventasPorDia(lista, st.desde, st.hasta, fechaAR(new Date())) });
   }
 
   function renderCajas() {

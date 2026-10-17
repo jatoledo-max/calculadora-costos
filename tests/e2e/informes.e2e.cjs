@@ -109,6 +109,14 @@ const capturas = process.argv[2];
   assert.deepEqual(await filas(), ["Caja 3", "Caja 2", "Caja 1"]);
   assert.equal(await kpi("#inf-resumen", "Ventas netas").locator(".v").textContent(), "$ 16.500");
   assert.match(await kpi("#inf-resumen", "Ventas netas").locator(".note").textContent(), /^3 ventas en 2 cajas$/);
+  // Gráficos del período: ventas por día (los dos días con caja), a dónde fue la plata, productos y medios de pago.
+  assert.match(await p.textContent("#inf-resumen .graf"), /Ventas por día/);
+  assert.match(await p.textContent("#inf-resumen"), new RegExp("Mejor día: " + Number(hoy.slice(8)) + "/" + Number(hoy.slice(5, 7)) + " con \\$ 8\\.500"));
+  assert.ok(await p.locator("#inf-resumen .gd-col").count() >= 2);
+  assert.match(await p.textContent("#inf-resumen"), /Qué se vendió más.*Lomito simple: 97% de lo vendido \(2 unidades\)/);
+  assert.match(await p.textContent("#inf-resumen"), /Cómo te pagaron.*Transferencia 48%/);
+  assert.equal(await p.locator("#inf-resumen details.cuentas").getAttribute("open"), null, "las cuentas completas arrancan cerradas");
+  if (capturas) await p.locator("#inf-resumen").screenshot({ path: `${capturas}/1b-graficos.png` });
   // Desde posterior a hasta: avisa y no muestra nada.
   await p.fill("#inf-desde", "2099-01-01");
   await esperaTexto("#inf-resumen", /posterior/);

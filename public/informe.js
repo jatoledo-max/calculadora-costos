@@ -49,7 +49,9 @@ export function sumarInformes(lista) {
 }
 
 // Dibuja el informe dentro de "box" (no borra lo que ya hay). cerrada: foto de un cierre. r.periodo: suma de varios días.
-export function pintarInforme(box, r, { cerrada = false } = {}) {
+// dias: [{ fecha, ventas, resultado }] para el gráfico por día de un período.
+// Arriba van los números clave y los gráficos; las cuentas completas quedan en un desplegable ("Ver todas las cuentas").
+export function pintarInforme(box, r, { cerrada = false, dias = null } = {}) {
   const periodo = !!r.periodo;
   if (cerrada && !periodo) {
     const d = new Date(r.cerrada_en);
@@ -65,9 +67,7 @@ export function pintarInforme(box, r, { cerrada = false } = {}) {
     kpis.appendChild(d);
   };
   kpi("Ventas netas", fmtPesos(Math.round(r.ventas_netas)), r.ventas + (r.ventas === 1 ? " venta" : " ventas") + (periodo ? " en " + r.cajas + (r.cajas === 1 ? " caja" : " cajas") : ""));
-  kpi("Costo de mercadería", fmtPesos(Math.round(r.costo_mercaderia)), "insumos y packaging");
-  kpi("Margen bruto", fmtPesos(Math.round(r.margen_bruto)), r.margen_pct != null ? r.margen_pct.toLocaleString("es-AR") + "% de las ventas netas" : "");
-  kpi("Resultado estimado", fmtPesos(Math.round(r.resultado_estimado)), "después de gastos, gastos fijos y nafta", "hl");
+  kpi("Resultado estimado", fmtPesos(Math.round(r.resultado_estimado)), r.margen_pct != null ? "margen bruto " + r.margen_pct.toLocaleString("es-AR") + "%" : "después de gastos", "hl");
   if (periodo) {
     const dif = Number(r.diferencia_efectivo);
     kpi("Diferencias de caja", dif ? fmtPesos(Math.round(dif)) : "$ 0",
@@ -76,6 +76,8 @@ export function pintarInforme(box, r, { cerrada = false } = {}) {
     const dif = Number(r.diferencia_efectivo);
     kpi("Diferencia de efectivo", dif ? fmtPesos(Math.round(dif)) : "$ 0", dif < 0 ? "falta plata" : dif > 0 ? "sobra plata" : "coincide", dif ? "mal" : "");
     kpi("Disponible para retirar", fmtPesos(Math.round(r.disponible_estimado)), "estimado", "hl");
+  } else {
+    kpi("Efectivo esperado", fmtPesos(Math.round(r.efectivo_esperado)), "lo que tendría que haber en la caja");
   }
   box.appendChild(kpis);
 
@@ -87,12 +89,29 @@ export function pintarInforme(box, r, { cerrada = false } = {}) {
     box.appendChild(a);
   }
 
+  // ---------- Gráficos ----------
+  if (periodo && dias && dias.filter((x) => x.ventas || x.resultado).length >= 2) graficoDias(box, dias);
+  graficoPlata(box, r);
+  graficoProductos(box, r);
+  graficoMedios(box, r);
+
+  // Avisos que importan: siempre a la vista.
+  if (r.anuladas) box.appendChild(el("p", "hint", (r.anuladas === 1 ? "1 venta anulada" : r.anuladas + " ventas anuladas") + (periodo ? "" : " en esta caja") +
+    " (" + fmtPesos(r.anuladas_total) + "): " + (r.anuladas === 1 ? "no cuenta" : "no cuentan") + " en nada."));
+  (r.anulaciones_anteriores || []).forEach((x) => box.appendChild(el("p", "hint",
+    "Anulación de un día anterior: Venta " + x.venta + " de la Caja " + x.caja + ", " + fmtPesos(x.total) + " (" + x.motivo + "). El cierre de ese día no cambia; si devolviste plata, cargala como retiro.")));
+  if (cerrada && r.observaciones) { const o = el("p", "hint"); o.append(el("b", null, "Observaciones: "), document.createTextNode(r.observaciones)); box.appendChild(o); }
+
+  // ---------- Cuentas completas, en un desplegable ----------
+  const det = el("details", "cuentas");
+  det.appendChild(el("summary", null, "Ver todas las cuentas"));
+  box.appendChild(det);
   // Cada pregunta en su tabla, cada concepto por separado.
   const tabla = (titulo, filas) => {
-    box.appendChild(el("h3", "res-sub", titulo));
+    det.appendChild(el("h3", "res-sub", titulo));
     const t = el("table", "res-tabla");
     filas.filter(Boolean).forEach(([k, v, cls]) => { const tr = el("tr", cls || ""); tr.append(el("td", null, k), el("td", "r num", v)); t.appendChild(tr); });
-    box.appendChild(t);
+    det.appendChild(t);
   };
   tabla(periodo ? "¿Cuánto gané en estos días?" : "¿Cuánto gané?", [
     ["Ventas brutas (precio de lista)", fmtPesos(r.ventas_brutas)],
@@ -113,7 +132,7 @@ export function pintarInforme(box, r, { cerrada = false } = {}) {
   const notas = [];
   if (r.gastos_en_fijos) notas.push(fmtPesos(r.gastos_en_fijos) + " de gastos pagados ya están en tus gastos fijos: no se restan de nuevo.");
   if (r.compras_mercaderia) notas.push("Las compras de mercadería (" + fmtPesos(r.compras_mercaderia) + ") no restan del resultado: ese costo entra cuando vendés.");
-  if (notas.length) box.appendChild(el("p", "hint", notas.join(" ")));
+  if (notas.length) det.appendChild(el("p", "hint", notas.join(" ")));
 
   if (periodo) {
     // Los saldos de cada día no se suman (el fondo de ayer es el de hoy): se muestra lo que entró y salió y las diferencias.
@@ -152,21 +171,16 @@ export function pintarInforme(box, r, { cerrada = false } = {}) {
         Number(r.obligaciones_pendientes) ? ["− Pagos pendientes", fmtPesos(r.obligaciones_pendientes)] : null,
         ["= Disponible estimado para retirar", fmtPesos(r.disponible_estimado), "tot hl"],
       ]);
-      (r.obligaciones || []).forEach((o) => box.appendChild(el("p", "hint", "Pago pendiente: " + o.nombre + " " + fmtPesos(o.monto) + (o.vence ? " (vence el " + fechaCorta(o.vence) + ")" : "") + ".")));
+      (r.obligaciones || []).forEach((o) => det.appendChild(el("p", "hint", "Pago pendiente: " + o.nombre + " " + fmtPesos(o.monto) + (o.vence ? " (vence el " + fechaCorta(o.vence) + ")" : "") + ".")));
     } else if (r.reserva_apartada) {
-      box.appendChild(el("p", "hint", "Reserva apartada: " + fmtPesos(r.reserva_apartada) + "."));
+      det.appendChild(el("p", "hint", "Reserva apartada: " + fmtPesos(r.reserva_apartada) + "."));
     }
-    box.appendChild(el("p", "hint", "Reserva sugerida para reponer mercadería: " + fmtPesos(r.reserva_sugerida) + " (lo que costó lo que vendiste)." +
+    det.appendChild(el("p", "hint", "Reserva sugerida para reponer mercadería: " + fmtPesos(r.reserva_sugerida) + " (lo que costó lo que vendiste)." +
       (cerrada && Number(r.reserva_apartada) < Number(r.reserva_sugerida) ? " Apartaste " + fmtPesos(r.reserva_apartada) + "." : "")));
   }
 
-  if (r.anuladas) box.appendChild(el("p", "hint", (r.anuladas === 1 ? "1 venta anulada" : r.anuladas + " ventas anuladas") + (periodo ? "" : " en esta caja") +
-    " (" + fmtPesos(r.anuladas_total) + "): " + (r.anuladas === 1 ? "no cuenta" : "no cuentan") + " en nada."));
-  (r.anulaciones_anteriores || []).forEach((x) => box.appendChild(el("p", "hint",
-    "Anulación de un día anterior: Venta " + x.venta + " de la Caja " + x.caja + ", " + fmtPesos(x.total) + " (" + x.motivo + "). El cierre de ese día no cambia; si devolviste plata, cargala como retiro.")));
-  if (cerrada && r.observaciones) { const o = el("p", "hint"); o.append(el("b", null, "Observaciones: "), document.createTextNode(r.observaciones)); box.appendChild(o); }
-
   if (r.por_producto.length) {
+    det.appendChild(el("h3", "res-sub", "Por producto"));
     const tp = el("table", "res-prod");
     tp.innerHTML = "<thead><tr><th>Producto</th><th class='r'>Cant.</th><th class='r'>Ventas</th><th class='r'>Costo</th><th class='r'>Margen</th></tr></thead>";
     const tb = el("tbody");
@@ -179,9 +193,137 @@ export function pintarInforme(box, r, { cerrada = false } = {}) {
     });
     tp.appendChild(tb);
     const wrap = el("div", "tbl-wrap"); wrap.appendChild(tp);
-    box.appendChild(wrap);
+    det.appendChild(wrap);
   }
-  box.appendChild(el("p", "hint", "El resultado es una estimación, no la ganancia contable. El disponible no descuenta impuestos ni compras futuras que no hayas cargado. Los descuentos se restan del total, no de cada producto."));
+  det.appendChild(el("p", "hint", "El resultado es una estimación, no la ganancia contable. El disponible no descuenta impuestos ni compras futuras que no hayas cargado. Los descuentos se restan del total, no de cada producto."));
+}
+
+// ---------- Gráficos (HTML y CSS, sin librerías: se ven igual sin internet) ----------
+// Cada gráfico lleva su título y una frase que dice lo principal, para no tener que leer las barras.
+const pct = (parte, total) => (total > 0 ? Math.max(0, Math.min(100, (parte * 100) / total)) : 0);
+const pctTxt = (parte, total) => Math.round(pct(parte, total)) + "%";
+function tarjeta(box, titulo, frase) {
+  const g = el("figure", "graf");
+  g.appendChild(el("figcaption", "graf-t", titulo));
+  if (frase) g.appendChild(el("p", "graf-frase", frase));
+  box.appendChild(g);
+  return g;
+}
+function leyenda(g, items) {
+  const l = el("ul", "graf-ley");
+  items.forEach(([cls, txt]) => { const li = el("li"); li.append(el("span", "pto " + cls), document.createTextNode(txt)); l.appendChild(li); });
+  g.appendChild(l);
+}
+
+// De cada $ 100 que entraron, cuánto se fue en mercadería, en gastos y cuánto quedó.
+function graficoPlata(box, r) {
+  const entra = aCentavos(r.ventas_netas) + aCentavos(r.envios_cobrados);
+  if (entra <= 0) return;
+  const partes = [
+    ["c-merca", "Mercadería", aCentavos(r.costo_mercaderia)],
+    ["c-fijos", "Gastos fijos y nafta", aCentavos(r.gastos_fijos_estimados) + aCentavos(r.nafta_estimada)],
+    ["c-gastos", "Gastos del día", aCentavos(r.gastos_operativos)],
+  ].filter((p) => p[2] > 0);
+  const queda = aCentavos(r.resultado_estimado);
+  const gastado = partes.reduce((a, p) => a + p[2], 0);
+  const g = tarjeta(box, "¿A dónde fue la plata de las ventas?", queda >= 0
+    ? "De cada $ 100 que vendiste te quedaron $ " + Math.round((queda * 100) / entra) + "."
+    : "Los costos superaron a las ventas por " + fmtPesos(-queda / 100) + ".");
+  const barra = el("div", "graf-apilada");
+  barra.setAttribute("role", "img");
+  const total = Math.max(entra, gastado);
+  const seg = (cls, txt, v) => {
+    const s = el("span", "seg " + cls); s.style.width = pct(v, total) + "%"; s.title = txt + ": " + fmtPesos(v / 100);
+    if (pct(v, total) >= 12) s.textContent = pctTxt(v, entra);
+    barra.appendChild(s);
+  };
+  partes.forEach(([cls, txt, v]) => seg(cls, txt, v));
+  if (queda > 0) seg("c-queda", "Te quedó", queda);
+  barra.setAttribute("aria-label", partes.map((p) => p[1] + " " + fmtPesos(p[2] / 100)).concat(queda > 0 ? ["te quedó " + fmtPesos(queda / 100)] : []).join(", "));
+  g.appendChild(barra);
+  leyenda(g, partes.map(([cls, txt, v]) => [cls, txt + " " + fmtPesos(Math.round(v / 100))]).concat(queda > 0 ? [["c-queda", "Te quedó " + fmtPesos(Math.round(queda / 100))]] : []));
+}
+
+// Qué se vendió más: barra = lo vendido; la parte oscura es el margen (lo que deja después de la mercadería).
+function graficoProductos(box, r) {
+  const lista = (r.por_producto || []).filter((x) => Number(x.ventas) > 0);
+  if (!lista.length) return;
+  const MAX = 6;
+  const top = lista.slice(0, MAX);
+  if (lista.length > MAX) {
+    const resto = lista.slice(MAX);
+    top.push({ nombre: "Otros (" + resto.length + ")", cantidad: resto.reduce((a, x) => a + x.cantidad, 0),
+      ventas: resto.reduce((a, x) => a + Number(x.ventas), 0), margen: resto.reduce((a, x) => a + Number(x.margen), 0) });
+  }
+  const primero = lista[0];
+  const g = tarjeta(box, "Qué se vendió más", primero.nombre + ": " + pctTxt(Number(primero.ventas), Number(r.ventas_brutas)) + " de lo vendido (" +
+    primero.cantidad + (primero.cantidad === 1 ? " unidad" : " unidades") + ").");
+  const max = Math.max(...top.map((x) => Number(x.ventas)));
+  const ul = el("ul", "graf-prod");
+  top.forEach((x) => {
+    const li = el("li");
+    const cab = el("div", "gp-cab");
+    cab.append(el("span", "gp-n", x.cantidad + "× " + x.nombre), el("span", "gp-v num", fmtPesos(Math.round(Number(x.ventas)))));
+    const barra = el("div", "gp-barra");
+    barra.setAttribute("role", "img");
+    barra.setAttribute("aria-label", x.nombre + ": vendiste " + fmtPesos(x.ventas) + ", margen " + fmtPesos(x.margen));
+    const v = el("span", "gp-ventas"); v.style.width = pct(Number(x.ventas), max) + "%";
+    const m = el("span", "gp-margen"); m.style.width = pct(Math.max(0, Number(x.margen)), Number(x.ventas)) + "%";
+    v.appendChild(m); barra.appendChild(v);
+    li.append(cab, barra);
+    ul.appendChild(li);
+  });
+  g.appendChild(ul);
+  leyenda(g, [["c-margen", "Margen (después de la mercadería)"], ["c-vendido", "Resto: costo de la mercadería"]]);
+}
+
+// Cómo te pagaron: efectivo contra transferencia.
+function graficoMedios(box, r) {
+  const medios = Object.entries(r.por_medio || {}).filter(([, v]) => Number(v) > 0);
+  const total = medios.reduce((a, [, v]) => a + aCentavos(v), 0);
+  if (total <= 0 || medios.length < 1) return;
+  medios.sort((a, b) => Number(b[1]) - Number(a[1]));
+  const g = tarjeta(box, "Cómo te pagaron", medios.map(([m, v]) => (MEDIOS[m] || m) + " " + pctTxt(aCentavos(v), total)).join(" · "));
+  const barra = el("div", "graf-apilada");
+  barra.setAttribute("role", "img");
+  barra.setAttribute("aria-label", medios.map(([m, v]) => (MEDIOS[m] || m) + " " + fmtPesos(v)).join(", "));
+  medios.forEach(([m, v]) => {
+    const s = el("span", "seg m-" + m); s.style.width = pct(aCentavos(v), total) + "%"; s.title = (MEDIOS[m] || m) + ": " + fmtPesos(v);
+    if (pct(aCentavos(v), total) >= 12) s.textContent = pctTxt(aCentavos(v), total);
+    barra.appendChild(s);
+  });
+  g.appendChild(barra);
+  leyenda(g, medios.map(([m, v]) => ["m-" + m, (MEDIOS[m] || m) + " " + fmtPesos(Math.round(Number(v)))]));
+}
+
+// Ventas y resultado de cada día del período. dias: [{ fecha: "2026-10-17", ventas, resultado }], en orden.
+function graficoDias(box, dias) {
+  const mejor = dias.reduce((a, x) => (x.ventas > a.ventas ? x : a), dias[0]);
+  const conVentas = dias.filter((x) => x.ventas > 0);
+  const prom = conVentas.length ? conVentas.reduce((a, x) => a + x.ventas, 0) / conVentas.length : 0;
+  const g = tarjeta(box, "Ventas por día", "Mejor día: " + fechaCorta(mejor.fecha) + " con " + fmtPesos(Math.round(mejor.ventas)) +
+    ". Promedio de los días que abriste: " + fmtPesos(Math.round(prom)) + ".");
+  const maxPos = Math.max(1, ...dias.map((x) => Math.max(x.ventas, x.resultado)));
+  const maxNeg = Math.max(0, ...dias.map((x) => -Math.min(0, x.resultado)));
+  const alto = maxPos + maxNeg;
+  const cont = el("div", "graf-dias");
+  cont.setAttribute("role", "img");
+  cont.setAttribute("aria-label", "Ventas por día: " + conVentas.map((x) => fechaCorta(x.fecha) + " " + fmtPesos(Math.round(x.ventas))).join(", "));
+  cont.style.setProperty("--pos", (maxPos * 100) / alto + "%");
+  const cadaCuanto = Math.ceil(dias.length / 8); // como mucho unas 8 fechas abajo, para que se lean
+  dias.forEach((x, i) => {
+    const col = el("div", "gd-col");
+    col.title = fechaCorta(x.fecha) + ": vendiste " + fmtPesos(x.ventas) + ", resultado " + fmtPesos(x.resultado);
+    const pos = el("div", "gd-pos"), neg = el("div", "gd-neg");
+    const v = el("span", "gd-v"); v.style.height = pct(x.ventas, maxPos) + "%";
+    const res = el("span", "gd-r"); res.style.height = pct(Math.max(0, x.resultado), maxPos) + "%";
+    pos.append(v, res);
+    if (x.resultado < 0) { const n = el("span", "gd-rn"); n.style.height = pct(-x.resultado, maxNeg) + "%"; neg.appendChild(n); }
+    col.append(pos, neg, el("span", "gd-f", i % cadaCuanto === 0 || i === dias.length - 1 ? String(Number(x.fecha.slice(8))) : ""));
+    cont.appendChild(col);
+  });
+  g.appendChild(cont);
+  leyenda(g, [["c-vendido", "Ventas netas"], ["c-margen", "Resultado estimado"]].concat(maxNeg ? [["c-perdida", "Día con resultado negativo"]] : []));
 }
 
 // "2026-10-17" → "17/10"

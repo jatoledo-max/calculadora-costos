@@ -128,13 +128,19 @@ const capturas = process.argv[2];
     const fijos = Math.round((7000 / 120) * 100) / 100 * unidades;
     const resultado = netas - cmv + 1000 - fijos - 250;    // 1 pedido con envío, nafta 20.000 / 80
     const r = (x) => fmtPesos(Math.round(x)); // los cuadros grandes van redondeados a pesos
-    return { netas: r(netas), cmv: r(cmv), margen: r(netas - cmv), resultado: r(resultado), unidades };
+    return { netas: r(netas), cmv: fmtPesos(cmv), margen: fmtPesos(netas - cmv), resultado: r(resultado), unidades };
   }, datos);
   const kpi = (k) => p.locator(".res-kpi").filter({ has: p.locator(".k", { hasText: new RegExp("^" + k + "$") }) }).locator(".v").textContent();
   await p.waitForSelector(".res-kpi");
   assert.equal(await kpi("Ventas netas"), esperado.netas);
-  assert.equal(await kpi("Costo de mercadería"), esperado.cmv);
-  assert.equal(await kpi("Margen bruto"), esperado.margen);
+  // Costo y margen están en las cuentas completas (desplegable), con centavos.
+  const filaRes = (k) => p.locator("#caja-resumen .res-tabla tr").filter({ has: p.locator("td:first-child", { hasText: new RegExp("^" + k + "$") }) }).first().locator("td.r").textContent();
+  assert.equal(await filaRes("− Costo de mercadería vendida"), esperado.cmv);
+  assert.equal(await filaRes("= Margen bruto"), esperado.margen);
+  // Gráficos: a dónde fue la plata, qué se vendió más y cómo pagaron.
+  assert.match(await p.textContent("#caja-resumen"), /¿A dónde fue la plata de las ventas\?De cada \$ 100 que vendiste te quedaron \$ \d+\./);
+  assert.match(await p.textContent("#caja-resumen"), /Qué se vendió más/);
+  assert.match(await p.textContent("#caja-resumen"), /Cómo te pagaron/);
   assert.equal(await kpi("Resultado estimado"), esperado.resultado);
   assert.match(await p.textContent(".res-tabla"), new RegExp(esperado.unidades + " productos"));
   assert.doesNotMatch(await p.textContent(".caja-resumen"), /Rentabilidad provisional/); // todo lo vendido tiene receta completa

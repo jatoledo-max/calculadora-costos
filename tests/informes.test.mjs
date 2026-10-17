@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { sumarInformes, totalPendientes } from "../public/informe.js";
-import { rangoRapido, csvCierres, csvVentas, csvMovimientos } from "../public/informes.js";
+import { rangoRapido, csvCierres, csvVentas, csvMovimientos, ventasPorDia } from "../public/informes.js";
 
 // Dos cierres con la forma que guarda la base (la foto del informe).
 const dia1 = {
@@ -114,4 +114,15 @@ test("planilla de gastos y retiros", () => {
     creado_en: "2026-10-16T23:30:00Z", estado: "vigente" }];
   const lineas = csvMovimientos(cajas, movs).replace(/^﻿/, "").trim().split("\r\n");
   assert.equal(lineas[1], "1;16/10/2026;20:30;Compra de mercadería;Efectivo;6000;Pan;No;Vigente;");
+});
+
+test("ventas por día para el gráfico: todos los días hasta hoy, sumando dos cajas del mismo día", () => {
+  const caja = (fecha, ventas, resultado) => ({ fecha_operacion: fecha, resumen: { ventas_netas: ventas, resultado_estimado: resultado } });
+  const dias = ventasPorDia([caja("2026-10-02", 1000.1, 300), caja("2026-10-02", 500.2, -100), caja("2026-10-04", 800, 200)], "2026-10-01", "2026-10-31", "2026-10-05");
+  assert.deepEqual(dias.map((x) => x.fecha), ["2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05"]);
+  assert.deepEqual(dias[1], { fecha: "2026-10-02", ventas: 1500.3, resultado: 200 });
+  assert.equal(dias[2].ventas, 0);
+  // Período largo: solo los días con caja.
+  const largo = ventasPorDia([caja("2026-01-10", 1, 1), caja("2026-06-01", 2, 2)], "2026-01-01", "2026-06-30", "2026-10-05");
+  assert.deepEqual(largo.map((x) => x.fecha), ["2026-01-10", "2026-06-01"]);
 });
