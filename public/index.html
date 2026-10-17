@@ -65,6 +65,7 @@
       <div class="logo-id"><img id="neg-logo-img" alt="" hidden><h1><span id="neg-titulo"></span> <small>Cuánto te cuesta cada producto y a cuánto venderlo</small></h1></div>
       <nav class="tabs" role="tablist">
         <button id="tab-caja" role="tab" aria-selected="false" data-tab="caja">Caja</button>
+        <button id="tab-informes" role="tab" aria-selected="false" data-tab="informes">Informes</button>
         <button id="tab-productos" role="tab" aria-selected="true" data-tab="productos">Productos</button>
         <button id="tab-insumos" role="tab" aria-selected="false" data-tab="insumos">Insumos</button>
         <button id="tab-gastos" role="tab" aria-selected="false" data-tab="gastos">Gastos fijos</button>
@@ -102,6 +103,14 @@
     <div id="caja-movs" class="card caja-movs" hidden></div>
     <div id="caja-ventas" class="card caja-ventas" hidden></div>
     <div id="caja-cierre" class="card caja-cierre" hidden></div>
+  </section>
+
+  <section id="view-informes" data-view="informes" hidden>
+    <div id="inf-periodo" class="card inf-card"></div>
+    <div id="inf-resumen" class="card inf-card caja-resumen"></div>
+    <div id="inf-cajas" class="card inf-card"></div>
+    <div id="inf-descargas" class="card inf-card"></div>
+    <div id="inf-pendientes" class="card inf-card"></div>
   </section>
 
   <section id="view-productos" data-view="productos">

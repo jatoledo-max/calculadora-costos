@@ -62,11 +62,17 @@ export function supabaseStore(supabase, negocioId) {
 //   anularVenta(id, motivo)           → { id, numero, total, ya_estaba, misma_caja }
 //   cerrarCaja(cierre)                cierre = { cajaId, efectivoContado, transferenciasBanco, fondoSiguiente, observaciones }
 //   resumen(cajaId)                   → el informe de la caja (si está cerrada, la foto del cierre)
+//   listarCajas(desde, hasta)         → cajas con fecha_operacion entre las dos fechas ("2026-10-01"), la más nueva primero,
+//                                       cada una con su foto del cierre en "resumen"
+//   detalle(cajaIds)                  → { ventas, movimientos } de esas cajas (también las anuladas), con renglones y pagos
 // "venta" es { id, items: [{ producto, opcion, cantidad, costo_unitario, packaging_unitario, costo_incompleto, faltas }],
 //              pagos: [{ medio, importe }], descuento, motivo, cargoEnvio, conEnvio }.
 
 // Errores que no son de la base (sin internet, servidor caído): no sabemos si la operación llegó.
 export class SinRespuesta extends Error {}
+
+const COLS_VENTA = "id, caja_id, numero, creada_en, estado, bruto, total, descuento, motivo_descuento, cargo_envio, con_envio, costo_mercaderia, costo_incompleto, " +
+  "anulada_en, motivo_anulacion, anulada_en_caja, venta_items(renglon, nombre, cantidad, precio_unitario, costo_unitario), venta_pagos(medio, importe)";
 
 export function supabaseCaja(supabase) {
   const fallo = (error) => {
@@ -74,6 +80,17 @@ export function supabaseCaja(supabase) {
     if (error && error.code === "P0001") return new Error(error.message);
     if (!error || !error.code || /fetch|network|Failed/i.test(error.message || "")) return new SinRespuesta("No hubo respuesta del servidor.");
     return new Error("No se pudo guardar (" + (error.message || error.code) + ").");
+  };
+  // Supabase devuelve como mucho 1000 filas por pedido: se piden de a páginas hasta traer todo.
+  const todas = async (consulta) => {
+    const filas = [];
+    for (let desde = 0; ; desde += 1000) {
+      let r;
+      try { r = await consulta().range(desde, desde + 999); } catch (e) { throw new SinRespuesta("No hubo respuesta del servidor."); }
+      if (r.error) throw fallo(r.error);
+      filas.push(...r.data);
+      if (r.data.length < 1000) return filas;
+    }
   };
   const rpc = async (fn, args) => {
     let r;
@@ -90,9 +107,7 @@ export function supabaseCaja(supabase) {
       let ventas = [], movimientos = [];
       if (caja && caja.estado === "abierta") {
         const [v, m] = await Promise.all([
-          supabase.from("ventas")
-            .select("id, numero, creada_en, estado, total, descuento, cargo_envio, con_envio, costo_incompleto, motivo_anulacion, venta_items(renglon, nombre, cantidad), venta_pagos(medio, importe)")
-            .eq("caja_id", caja.id).order("numero", { ascending: false }),
+          supabase.from("ventas").select(COLS_VENTA).eq("caja_id", caja.id).order("numero", { ascending: false }),
           supabase.from("movimientos").select("*").eq("caja_id", caja.id).order("creado_en", { ascending: false }),
         ]);
         if (v.error) throw fallo(v.error);
@@ -100,6 +115,24 @@ export function supabaseCaja(supabase) {
         ventas = v.data; movimientos = m.data;
       }
       return { caja, ventas, movimientos };
+    },
+    async listarCajas(desde, hasta) {
+      return todas(() => supabase.from("cajas").select("*").gte("fecha_operacion", desde).lte("fecha_operacion", hasta)
+        .order("numero", { ascending: false }));
+    },
+    async detalle(cajaIds) {
+      if (!cajaIds.length) return { ventas: [], movimientos: [] };
+      const ventas = [], movimientos = [];
+      // De a 50 cajas por pedido, para que la dirección no quede demasiado larga.
+      for (let i = 0; i < cajaIds.length; i += 50) {
+        const ids = cajaIds.slice(i, i + 50);
+        const [v, m] = await Promise.all([
+          todas(() => supabase.from("ventas").select(COLS_VENTA).in("caja_id", ids).order("creada_en").order("id")),
+          todas(() => supabase.from("movimientos").select("*").in("caja_id", ids).order("creado_en").order("id")),
+        ]);
+        ventas.push(...v); movimientos.push(...m);
+      }
+      return { ventas, movimientos };
     },
     abrirCaja: (id, saldo) => rpc("abrir_caja", { p_id: id, p_saldo_inicial: saldo }),
     resumen: (cajaId) => rpc("resumen_caja", { p_caja_id: cajaId }),
@@ -131,6 +164,9 @@ export function localCaja(estado) {
   const abierta = () => db.cajas.find((c) => c.estado === "abierta") || null;
   const cent = (n) => Math.round((Number(n) || 0) * 100);
   const $ = (c) => c / 100;
+  // Fecha del día en Argentina ("2026-10-17"), como fecha_operacion en la base.
+  const fechaAR = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(d);
+  db.cajas.forEach((c) => { if (!c.fecha_operacion) c.fecha_operacion = fechaAR(new Date(c.abierta_en)); });
   const pesos = (c) => (c < 0 ? "− " : "") + "$ " + (Math.abs(c) / 100).toLocaleString("es-AR", { minimumFractionDigits: c % 100 ? 2 : 0, maximumFractionDigits: 2 });
 
   function informe(caja) {
@@ -164,8 +200,10 @@ export function localCaja(estado) {
     const cobEf = porMedio.efectivo || 0, cobTr = porMedio.transferencia || 0;
     const anuladas = db.ventas.filter((v) => v.caja_id === caja.id && v.estado === "anulada");
     const anteriores = db.ventas.filter((v) => v.anulada_en_caja === caja.id && v.caja_id !== caja.id);
+    const oblig = (((aj.obligaciones || {}).items) || []).filter((o) => /^\d{1,10}(\.\d+)?$/.test(String(o.monto)) && cent(o.monto) > 0)
+      .map((o) => ({ nombre: String(o.nombre || "").slice(0, 80), monto: $(cent(o.monto)), vence: /^\d{4}-\d{2}-\d{2}$/.test(o.vence || "") ? o.vence : null }));
     return {
-      caja: caja.id, numero: caja.numero, estado: caja.estado, abierta_en: caja.abierta_en, saldo_inicial: caja.saldo_inicial, ventas: vs.length,
+      caja: caja.id, numero: caja.numero, fecha_operacion: caja.fecha_operacion, estado: caja.estado, abierta_en: caja.abierta_en, saldo_inicial: caja.saldo_inicial, ventas: vs.length,
       ventas_brutas: $(bruto), descuentos: $(desc), ventas_netas: $(netas), envios_cobrados: $(envios), total_cobrado: $(sum(vs, (v) => v.total)),
       costo_mercaderia: $(cmv), packaging: $(its.reduce((a, i) => a + cent(i.packaging_unitario) * i.cantidad, 0)),
       margen_bruto: $(netas - cmv), margen_pct: netas > 0 ? Math.round(((netas - cmv) * 1000) / netas) / 10 : null,
@@ -185,6 +223,7 @@ export function localCaja(estado) {
       anuladas: anuladas.length, anuladas_total: $(sum(anuladas, (v) => v.total)),
       anulaciones_anteriores: anteriores.map((v) => ({ caja: (db.cajas.find((c) => c.id === v.caja_id) || {}).numero, venta: v.numero, total: v.total, motivo: v.motivo_anulacion })),
       anulaciones_anteriores_total: $(sum(anteriores, (v) => v.total)),
+      obligaciones: oblig, obligaciones_pendientes: $(oblig.reduce((a, o) => a + cent(o.monto), 0)),
     };
   }
 
@@ -200,7 +239,8 @@ export function localCaja(estado) {
     async abrirCaja(id, saldo) {
       if (!(Number(saldo) >= 0)) throw new Error("El efectivo inicial no puede ser negativo.");
       if (abierta()) return Object.assign({ ya_estaba: true }, abierta());
-      const c = { id, numero: db.cajas.length + 1, estado: "abierta", abierta_en: new Date().toISOString(), saldo_inicial: Number(saldo) };
+      const ahora = new Date();
+      const c = { id, numero: db.cajas.length + 1, fecha_operacion: fechaAR(ahora), estado: "abierta", abierta_en: ahora.toISOString(), saldo_inicial: Number(saldo) };
       db.cajas.push(c); save();
       return Object.assign({ ya_estaba: false }, c);
     },
@@ -300,12 +340,22 @@ export function localCaja(estado) {
       Object.assign(r, {
         estado: "cerrada", cerrada_en: new Date().toISOString(), efectivo_contado: $(contado), diferencia_efectivo: $(dif),
         transferencias_banco: banco == null ? null : $(banco), diferencia_transferencias: difTr == null ? null : $(difTr),
-        fondo_siguiente: $(fondo), observaciones: obs, obligaciones_pendientes: 0,
-        disponible_estimado: $(contado + (banco == null ? transf : banco) - fondo - cent(r.reserva_apartada)),
+        fondo_siguiente: $(fondo), observaciones: obs,
+        disponible_estimado: $(contado + (banco == null ? transf : banco) - fondo - cent(r.reserva_apartada) - cent(r.obligaciones_pendientes)),
       });
-      Object.assign(caja, { estado: "cerrada", cerrada_en: r.cerrada_en, efectivo_contado: r.efectivo_contado, fondo_siguiente: r.fondo_siguiente, resumen: r });
+      // Las mismas columnas que la tabla cajas en la base.
+      Object.assign(caja, { estado: "cerrada", cerrada_en: r.cerrada_en, efectivo_esperado: r.efectivo_esperado, efectivo_contado: r.efectivo_contado,
+        diferencia_efectivo: r.diferencia_efectivo, transferencias_banco: r.transferencias_banco, diferencia_transferencias: r.diferencia_transferencias,
+        fondo_siguiente: r.fondo_siguiente, observaciones: r.observaciones, resumen: r });
       save();
       return Object.assign({ ya_estaba: false }, r);
+    },
+    async listarCajas(desde, hasta) {
+      return db.cajas.filter((c) => c.fecha_operacion >= desde && c.fecha_operacion <= hasta).slice().reverse();
+    },
+    async detalle(cajaIds) {
+      const en = (id) => cajaIds.includes(id);
+      return { ventas: db.ventas.filter((v) => en(v.caja_id)), movimientos: db.movimientos.filter((m) => en(m.caja_id)) };
     },
     async resumen(cajaId) {
       const caja = db.cajas.find((c) => c.id === cajaId);

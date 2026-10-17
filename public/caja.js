@@ -3,12 +3,12 @@
 // cada operación la valida y la guarda la base.
 import { fmtPesos, aCentavos } from "./dinero.js";
 import { SinRespuesta } from "./stores.js";
+import { MEDIOS, pintarInforme, totalPendientes } from "./informe.js";
 
 export function iniciarCaja(calc, backend) {
   const $ = (s) => document.querySelector(s);
   const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
   const uuid = () => crypto.randomUUID();
-  const MEDIOS = { efectivo: "Efectivo", transferencia: "Transferencia" };
   const TIPOS = {
     gasto: { nombre: "Gasto", ayuda: "Algo que pagaste para el negocio (gas, cadete). Resta del resultado del día.", desc: "Qué pagaste (obligatorio)" },
     compra_mercaderia: { nombre: "Compra de mercadería", ayuda: "Insumos que compraste (pan, carne). Sale plata, pero no resta del resultado: ese costo ya entra cuando vendés.", desc: "Qué compraste (obligatorio)" },
@@ -483,112 +483,7 @@ export function iniciarCaja(calc, backend) {
     const hayAlgo = r.ventas || r.anuladas || (r.anulaciones_anteriores || []).length || st.movimientos.length;
     if (!cerrada && !hayAlgo) { box.appendChild(el("p", "empty", "Cuando registres ventas, acá vas a ver cuánto vendiste, cuánto costó y cuánto queda.")); return; }
 
-    if (cerrada) {
-      const d = new Date(r.cerrada_en || c.cerrada_en);
-      box.appendChild(el("p", "hint", "Abierta el " + new Date(r.abierta_en || c.abierta_en).toLocaleDateString("es-AR") + " a las " + hora(r.abierta_en || c.abierta_en) +
-        ", cerrada el " + d.toLocaleDateString("es-AR") + " a las " + hora(d) + ". Este informe ya no cambia."));
-    }
-
-    const kpis = el("div", "res-kpis");
-    const kpi = (k, v, nota, cls) => {
-      const d = el("div", "res-kpi" + (cls ? " " + cls : ""));
-      d.append(el("span", "k", k), el("span", "v num", v)); // los cuadros grandes van sin centavos; el detalle los muestra
-      if (nota) d.appendChild(el("span", "note", nota));
-      kpis.appendChild(d);
-    };
-    kpi("Ventas netas", fmtPesos(Math.round(r.ventas_netas)), r.ventas + (r.ventas === 1 ? " venta" : " ventas"));
-    kpi("Costo de mercadería", fmtPesos(Math.round(r.costo_mercaderia)), "insumos y packaging");
-    kpi("Margen bruto", fmtPesos(Math.round(r.margen_bruto)), r.margen_pct != null ? r.margen_pct.toLocaleString("es-AR") + "% de las ventas netas" : "");
-    kpi("Resultado estimado", fmtPesos(Math.round(r.resultado_estimado)), "después de gastos, gastos fijos y nafta", "hl");
-    if (cerrada) {
-      const dif = Number(r.diferencia_efectivo);
-      kpi("Diferencia de efectivo", dif ? fmtPesos(Math.round(dif)) : "$ 0", dif < 0 ? "falta plata" : dif > 0 ? "sobra plata" : "coincide", dif ? "mal" : "");
-      kpi("Disponible para retirar", fmtPesos(Math.round(r.disponible_estimado)), "estimado", "hl");
-    }
-    box.appendChild(kpis);
-
-    if (r.ventas_costo_incompleto) {
-      const a = el("div", "aviso-falta");
-      a.append(el("b", null, "Rentabilidad provisional: "), document.createTextNode(
-        r.ventas_costo_incompleto + (r.ventas_costo_incompleto === 1 ? " venta tiene" : " ventas tienen") + " productos con costo incompleto (" +
-        r.productos_costo_incompleto.join(", ") + "). El costo real es más alto: completá sus recetas en Productos."));
-      box.appendChild(a);
-    }
-
-    // Cada pregunta en su tabla, cada concepto por separado.
-    const tabla = (titulo, filas) => {
-      box.appendChild(el("h3", "res-sub", titulo));
-      const t = el("table", "res-tabla");
-      filas.filter(Boolean).forEach(([k, v, cls]) => { const tr = el("tr", cls || ""); tr.append(el("td", null, k), el("td", "r num", v)); t.appendChild(tr); });
-      box.appendChild(t);
-    };
-    tabla("¿Cuánto gané?", [
-      ["Ventas brutas (precio de lista)", fmtPesos(r.ventas_brutas)],
-      r.descuentos ? ["− Descuentos", fmtPesos(r.descuentos)] : null,
-      ["= Ventas netas", fmtPesos(r.ventas_netas), "tot"],
-      ["− Costo de mercadería vendida", fmtPesos(r.costo_mercaderia)],
-      ["= Margen bruto", fmtPesos(r.margen_bruto), "tot"],
-      r.envios_cobrados ? ["+ Envíos cobrados aparte", fmtPesos(r.envios_cobrados)] : null,
-      r.gastos_operativos ? ["− Gastos del día", fmtPesos(r.gastos_operativos)] : null,
-      ["− Gastos fijos estimados (" + r.unidades + " productos × " + fmtPesos(r.gasto_fijo_por_unidad) + ")", fmtPesos(r.gastos_fijos_estimados)],
-      ["− Nafta estimada (" + r.pedidos_con_envio + (r.pedidos_con_envio === 1 ? " pedido" : " pedidos") + " × " + fmtPesos(r.nafta_por_pedido) + ")", fmtPesos(r.nafta_estimada)],
-      ["= Resultado estimado", fmtPesos(r.resultado_estimado), "tot hl"],
-    ]);
-    const notas = [];
-    if (r.gastos_en_fijos) notas.push(fmtPesos(r.gastos_en_fijos) + " de gastos pagados hoy ya están en tus gastos fijos: no se restan de nuevo.");
-    if (r.compras_mercaderia) notas.push("Las compras de mercadería (" + fmtPesos(r.compras_mercaderia) + ") no restan del resultado: ese costo entra cuando vendés.");
-    if (notas.length) box.appendChild(el("p", "hint", notas.join(" ")));
-
-    tabla("¿Cuánta plata tiene que haber?", [
-      ["Efectivo al abrir", fmtPesos(r.saldo_inicial)],
-      ["+ Cobrado en efectivo", fmtPesos(r.cobrado_efectivo)],
-      Number(r.movimientos_efectivo) ? ["± Gastos, compras, retiros, aportes y ajustes en efectivo", fmtPesos(r.movimientos_efectivo)] : null,
-      ["= Efectivo esperado", fmtPesos(r.efectivo_esperado), "tot"],
-      cerrada ? ["Efectivo contado", fmtPesos(r.efectivo_contado)] : null,
-      cerrada ? ["Diferencia", fmtPesos(r.diferencia_efectivo), "tot" + (Number(r.diferencia_efectivo) ? " mal" : "")] : null,
-      ["Cobrado por transferencia", fmtPesos(r.cobrado_transferencia)],
-      Number(r.movimientos_transferencia) ? ["± Pagado o recibido por transferencia", fmtPesos(r.movimientos_transferencia)] : null,
-      ["= Transferencias esperadas", fmtPesos(r.transferencias_esperadas), "tot"],
-      cerrada && r.transferencias_banco != null ? ["Lo que viste en el banco", fmtPesos(r.transferencias_banco)] : null,
-      cerrada && r.transferencias_banco != null ? ["Diferencia", fmtPesos(r.diferencia_transferencias), "tot" + (Number(r.diferencia_transferencias) ? " mal" : "")] : null,
-    ]);
-
-    if (cerrada) {
-      const banco = r.transferencias_banco != null;
-      tabla("¿Cuánto puedo retirar?", [
-        ["Efectivo contado", fmtPesos(r.efectivo_contado)],
-        ["+ Transferencias del día" + (banco ? " (lo que viste en el banco)" : " (esperadas)"), fmtPesos(banco ? r.transferencias_banco : r.transferencias_esperadas)],
-        ["− Fondo que queda para mañana", fmtPesos(r.fondo_siguiente)],
-        ["− Reserva apartada", fmtPesos(r.reserva_apartada)],
-        ["= Disponible estimado para retirar", fmtPesos(r.disponible_estimado), "tot hl"],
-      ]);
-    } else if (r.reserva_apartada) {
-      box.appendChild(el("p", "hint", "Reserva apartada: " + fmtPesos(r.reserva_apartada) + "."));
-    }
-    box.appendChild(el("p", "hint", "Reserva sugerida para reponer mercadería: " + fmtPesos(r.reserva_sugerida) + " (lo que costó lo que vendiste)." +
-      (cerrada && Number(r.reserva_apartada) < Number(r.reserva_sugerida) ? " Apartaste " + fmtPesos(r.reserva_apartada) + "." : "")));
-
-    if (r.anuladas) box.appendChild(el("p", "hint", (r.anuladas === 1 ? "1 venta anulada" : r.anuladas + " ventas anuladas") + " en esta caja (" + fmtPesos(r.anuladas_total) + "): " + (r.anuladas === 1 ? "no cuenta" : "no cuentan") + " en nada."));
-    (r.anulaciones_anteriores || []).forEach((x) => box.appendChild(el("p", "hint",
-      "Anulación de un día anterior: Venta " + x.venta + " de la Caja " + x.caja + ", " + fmtPesos(x.total) + " (" + x.motivo + "). El cierre de ese día no cambia; si devolviste plata, cargala como retiro.")));
-    if (cerrada && r.observaciones) { const o = el("p", "hint"); o.append(el("b", null, "Observaciones: "), document.createTextNode(r.observaciones)); box.appendChild(o); }
-
-    if (r.por_producto.length) {
-      const tp = el("table", "res-prod");
-      tp.innerHTML = "<thead><tr><th>Producto</th><th class='r'>Cant.</th><th class='r'>Ventas</th><th class='r'>Costo</th><th class='r'>Margen</th></tr></thead>";
-      const tb = el("tbody");
-      r.por_producto.forEach((x) => {
-        const tr = el("tr");
-        const nm = el("td", null, x.nombre);
-        if (x.costo_incompleto) nm.append(" ", el("span", "tag falta", "costo incompleto"));
-        tr.append(nm, el("td", "r num", String(x.cantidad)), el("td", "r num", fmtPesos(x.ventas)), el("td", "r num", fmtPesos(x.costo)), el("td", "r num", fmtPesos(x.margen)));
-        tb.appendChild(tr);
-      });
-      tp.appendChild(tb);
-      const wrap = el("div", "tbl-wrap"); wrap.appendChild(tp);
-      box.appendChild(wrap);
-    }
-    box.appendChild(el("p", "hint", "El resultado es una estimación, no la ganancia contable. El disponible no descuenta impuestos ni compras futuras que no hayas cargado. Los descuentos se restan del total, no de cada producto."));
+    pintarInforme(box, Object.assign({ abierta_en: c.abierta_en, cerrada_en: c.cerrada_en }, r), { cerrada });
   }
 
   // Campo de anulación (motivo + confirmar) para una venta o un movimiento.
@@ -781,8 +676,11 @@ export function iniciarCaja(calc, backend) {
     const disp = $("#caja-cierre-disp");
     if (dEf == null) { disp.textContent = ""; return; }
     const tr = c.banco === "" ? aCentavos(r.transferencias_esperadas) : aCentavos(c.banco);
-    const val = aCentavos(c.contado) + tr - aCentavos(c.fondo) - aCentavos(r.reserva_apartada);
-    disp.textContent = "Disponible estimado para retirar: " + fmtPesos(val / 100) + " (contado + transferencias − fondo − reserva apartada).";
+    // Los pagos pendientes se toman de lo cargado ahora en Informes: es lo mismo que va a usar la base al cerrar.
+    const pend = aCentavos(totalPendientes((calc.estado.ajustes || {}).obligaciones));
+    const val = aCentavos(c.contado) + tr - aCentavos(c.fondo) - aCentavos(r.reserva_apartada) - pend;
+    disp.textContent = "Disponible estimado para retirar: " + fmtPesos(val / 100) + " (contado + transferencias − fondo − reserva apartada" +
+      (pend ? " − " + fmtPesos(pend / 100) + " de pagos pendientes" : "") + ").";
   }
 
   $("#caja-btn-abrir").onclick = abrir;
@@ -799,4 +697,5 @@ export function iniciarCaja(calc, backend) {
   window.addEventListener("online", () => { if (st.errorCarga) recargar(); });
   render();
   recargar();
+  return { recargar, hayAbierta: () => !!(st.caja && st.caja.estado === "abierta") };
 }

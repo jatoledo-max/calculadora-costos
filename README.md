@@ -11,6 +11,9 @@ Tiene 14 días de prueba gratis y después se cobra una suscripción mensual con
   - `costos.js`: las cuentas de costos, sin pantalla. Las usan la calculadora y la caja, así existen una sola vez.
   - `caja.js`: pestaña Caja. Abrir la caja, registrar ventas con botones grandes desde el celular, cargar gastos y retiros,
     anular ventas y cerrar la caja contando la plata.
+  - `informe.js`: cómo se dibuja un informe de caja (el de la caja abierta, el de un cierre o la suma de varios días).
+  - `informes.js`: pestaña Informes. Cierres por fechas (hoy, últimos 7 días, este mes, mes pasado o a mano), la suma del
+    período, el informe de cada cierre con sus ventas (para anular una venta de otro día), planillas .csv y pagos pendientes.
   - `dinero.js`: redondeo a centavos y formato en pesos.
   - `app.js`: ingreso, alta del negocio, marca propia y bloqueo cuando no hay suscripción.
   - `config.js`: URL y clave pública de Supabase. Si quedan vacías, la app abre en **modo demo** (datos en el navegador).
@@ -20,7 +23,8 @@ Tiene 14 días de prueba gratis y después se cobra una suscripción mensual con
 - `supabase/caja.sql`: tablas y funciones de la caja (cajas, ventas, renglones, pagos, movimientos). Se corre después de `schema.sql`.
   El celular solo puede leer esas tablas: para escribir llama a `abrir_caja`, `confirmar_venta`, `registrar_movimiento`,
   `anular_venta`, `anular_movimiento` y `cerrar_caja`, que validan todo en una transacción. `resumen_caja` devuelve el informe
-  (en vivo si la caja está abierta; la foto guardada al cerrar si está cerrada).
+  (en vivo si la caja está abierta; la foto guardada al cerrar si está cerrada). Los pagos pendientes se guardan en
+  `ajustes` (id `obligaciones`) y el cierre los resta del disponible para retirar.
 - `supabase/schema.sql`: tablas y reglas de seguridad. Cada negocio solo puede leer y escribir lo suyo, y solo con prueba vigente o suscripción activa.
 - `netlify/functions/crear-suscripcion.mjs`: crea la suscripción mensual en Mercado Pago y devuelve el link de pago.
 - `netlify/functions/mp-webhook.mjs`: recibe los avisos de Mercado Pago y activa o bloquea el negocio.
@@ -57,9 +61,10 @@ Con `config.js` vacío arranca en modo demo.
 - `npm test`: cálculos de costos y de plata (Node 22, sin instalar nada).
 - `npm run test:db`: carga `schema.sql` y `caja.sql` en un Postgres de prueba y comprueba las reglas de la caja
   (sin duplicados, precios del catálogo, pagos que suman el total, gastos y retiros, anulaciones, cierre con la noche de
-  ejemplo del diseño, una caja cerrada que no cambia, cada negocio ve solo lo suyo).
+  ejemplo del diseño, pagos pendientes, una caja cerrada que no cambia, cada negocio ve solo lo suyo).
   Necesita `psql` y un Postgres al que conectarse con `PGHOST`, `PGPORT` y `PGUSER`.
 - `tests/e2e/`: recorren la caja y la ficha de producto en un navegador, en modo demo.
-  Con `public/` servido en el puerto 8765: `node tests/e2e/caja.e2e.cjs`, `node tests/e2e/cierre.e2e.cjs` y `node tests/e2e/ficha.e2e.cjs` (necesitan Playwright).
+  Con `public/` servido en el puerto 8765: `node tests/e2e/caja.e2e.cjs`, `node tests/e2e/cierre.e2e.cjs`, `node tests/e2e/informes.e2e.cjs`
+  y `node tests/e2e/ficha.e2e.cjs` (necesitan Playwright).
   `node tests/e2e/celular.e2e.cjs` levanta su propio servidor (puerto 8766) y prueba que sea instalable, que abra sin internet,
   el carrito guardado y que todo lo tocable mida al menos 44 px.

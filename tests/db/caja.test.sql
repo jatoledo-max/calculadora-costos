@@ -362,14 +362,31 @@ begin
   end if;
 end $$;
 
+-- Pagos pendientes (Fase 6): los carga el dueño en Informes (en Supabase, con los permisos de la tabla ajustes).
+-- Los que no tienen un monto válido no cuentan.
+reset role;
+insert into public.ajustes (negocio_id, id, datos) values ('d0000000-0000-0000-0000-00000000000d', 'obligaciones',
+  '{"items":[{"nombre":"Proveedor de carne","monto":300,"vence":"2026-11-10"},{"nombre":"Mal","monto":"abc"},{"nombre":"Negativo","monto":-5},{"nombre":"Sin monto"},{"nombre":"Fecha rara","monto":"0.5","vence":"mañana"}]}');
+set role authenticated;
+
 -- Sin diferencias, se cierra sin observación. El fondo queda propuesto para abrir mañana.
 do $$
 declare r jsonb;
 begin
+  r := public.resumen_caja('d1000000-0000-0000-0000-000000000002');
+  if (r->>'obligaciones_pendientes')::numeric <> 300.5 or jsonb_array_length(r->'obligaciones') <> 2 then raise exception 'pagos pendientes: %', r; end if;
   r := public.cerrar_caja('d1000000-0000-0000-0000-000000000002', 21500, null, 15000, null);
   if (r->>'diferencia_efectivo')::numeric <> 0 or r->>'diferencia_transferencias' is not null then raise exception 'cierre sin diferencias: %', r; end if;
-  -- Sin dato del banco, el disponible usa las transferencias esperadas: 21.500 − 6.000 − 15.000 − 0 = 500
-  if (r->>'disponible_estimado')::numeric <> 500 then raise exception 'disponible sin banco: %', r; end if;
+  -- Sin dato del banco, el disponible usa las transferencias esperadas: 21.500 − 6.000 − 15.000 − 0 de reserva − 300,50 pendientes = 199,50
+  if (r->>'disponible_estimado')::numeric <> 199.5 then raise exception 'disponible sin banco: %', r; end if;
+  if r->'obligaciones'->0->>'vence' <> '2026-11-10' or r->'obligaciones'->1->'vence' <> 'null'::jsonb then raise exception 'vencimientos: %', r; end if;
+end $$;
+-- La foto del cierre no cambia si después se paga (se borra) el pendiente.
+reset role;
+delete from public.ajustes where negocio_id = 'd0000000-0000-0000-0000-00000000000d' and id = 'obligaciones';
+set role authenticated;
+do $$ begin
+  if (public.resumen_caja('d1000000-0000-0000-0000-000000000002')->>'disponible_estimado')::numeric <> 199.5 then raise exception 'la foto cambió'; end if;
 end $$;
 
 -- Otro negocio no puede anular, cargar ni cerrar lo de D.

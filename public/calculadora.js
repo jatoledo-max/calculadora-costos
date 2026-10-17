@@ -517,5 +517,7 @@ export function iniciarCalculadora(s) {
   store.subscribe("productos", (m) => { state.productos = m; render(); });
   store.subscribe("gastos", (m) => { state.gastos = m; render(); });
   store.subscribe("ajustes", (m) => { state.ajustes = m; render(); });
-  return { estado: state, costos, alCambiar: (fn) => alCambiar.push(fn) };
+  // guardarAjuste: para que otras pestañas (Informes: pagos pendientes) guarden en "ajustes" con la misma conexión.
+  const guardarAjuste = (id, body) => store.set("ajustes", id, body);
+  return { estado: state, costos, alCambiar: (fn) => alCambiar.push(fn), guardarAjuste };
 }

@@ -36,6 +36,8 @@ create table if not exists public.cajas (
 );
 -- Nunca dos cajas abiertas en el mismo negocio, aunque dos celulares toquen "Abrir" a la vez.
 create unique index if not exists cajas_una_abierta on public.cajas (negocio_id) where estado = 'abierta';
+-- Fase 6: los informes buscan las cajas por fecha.
+create index if not exists cajas_fecha on public.cajas (negocio_id, fecha_operacion);
 
 create table if not exists public.ventas (
   id uuid primary key,
@@ -370,6 +372,7 @@ declare
   fijo_u numeric(12,2) := 0;
   nafta_p numeric(12,2) := 0;
   d jsonb;
+  oblig jsonb;
 begin
   -- Gastos fijos por producto y nafta por pedido, con los valores cargados hoy en la calculadora.
   select sum(coalesce(nullif(datos->>'monto', '')::numeric, 0)) into total_fijos from public.gastos where negocio_id = neg;
@@ -379,6 +382,14 @@ begin
   if coalesce(nullif(d->>'pedidosMes', '')::numeric, 0) > 0 then
     nafta_p := round(coalesce(nullif(d->>'naftaMes', '')::numeric, 0) / (d->>'pedidosMes')::numeric, 2);
   end if;
+  -- Pagos pendientes (alquiler, proveedor…) cargados en Informes: no son plata para retirar.
+  -- Se toman solo los que tienen un monto válido mayor a 0.
+  select coalesce(jsonb_agg(jsonb_build_object('nombre', left(coalesce(x->>'nombre', ''), 80), 'monto', round((x->>'monto')::numeric, 2),
+           'vence', case when x->>'vence' ~ '^\d{4}-\d{2}-\d{2}$' then x->>'vence' end)), '[]'::jsonb)
+    into oblig
+  from public.ajustes a, jsonb_array_elements(case when jsonb_typeof(a.datos->'items') = 'array' then a.datos->'items' else '[]'::jsonb end) x
+  where a.negocio_id = neg and a.id = 'obligaciones'
+    and (case when x->>'monto' ~ '^\d{1,10}(\.\d+)?$' then (x->>'monto')::numeric end) > 0;
 
   with v as (select * from public.ventas where caja_id = c.id and estado = 'confirmada'),
        it as (select i.* from public.venta_items i join v on v.id = i.venta_id),
@@ -462,7 +473,9 @@ begin
       select jsonb_agg(jsonb_build_object('caja', ca.numero, 'venta', x.numero, 'total', x.total, 'motivo', x.motivo_anulacion) order by x.anulada_en)
       from public.ventas x join public.cajas ca on ca.id = x.caja_id
       where x.anulada_en_caja = c.id and x.caja_id <> c.id), '[]'::jsonb),
-    'anulaciones_anteriores_total', coalesce((select sum(total) from public.ventas where anulada_en_caja = c.id and caja_id <> c.id), 0)
+    'anulaciones_anteriores_total', coalesce((select sum(total) from public.ventas where anulada_en_caja = c.id and caja_id <> c.id), 0),
+    'obligaciones', oblig,
+    'obligaciones_pendientes', coalesce((select sum((o->>'monto')::numeric) from jsonb_array_elements(oblig) o), 0)
   ) into r
   from base b;
   return r;
@@ -650,9 +663,9 @@ begin
     'diferencia_transferencias', dif_tr,
     'fondo_siguiente', fondo,
     'observaciones', obs,
-    'obligaciones_pendientes', 0,
-    -- Disponible = lo que hay (efectivo contado + transferencias del día) − lo que queda de fondo − lo que apartaste.
-    'disponible_estimado', contado + coalesce(banco, transf) - fondo - (r->>'reserva_apartada')::numeric);
+    -- Disponible = lo que hay (efectivo contado + transferencias del día) − lo que queda de fondo − lo que apartaste
+    -- − los pagos pendientes (la lista de pagos pendientes queda en la foto del cierre).
+    'disponible_estimado', contado + coalesce(banco, transf) - fondo - (r->>'reserva_apartada')::numeric - (r->>'obligaciones_pendientes')::numeric);
 
   update public.cajas set estado = 'cerrada', cerrada_en = now(), cerrada_por = auth.uid(),
     efectivo_esperado = esperado, efectivo_contado = contado, diferencia_efectivo = dif,
