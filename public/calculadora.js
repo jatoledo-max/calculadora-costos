@@ -500,7 +500,12 @@ export function iniciarCalculadora(s) {
     btnTema.onclick = () => { const t = oscuro() ? "light" : "dark"; document.documentElement.dataset.theme = t; try { localStorage.setItem("costos-tema", t); } catch (e) {} pintar(); };
     pintar();
   }
-  try { const t = localStorage.getItem("costos-tab"); const b = t && document.querySelector('nav.tabs button[data-tab="' + t + '"]'); if (b) b.click(); } catch (e) {}
+  // Pestaña inicial: la que pide la dirección (la app instalada abre en ?tab=caja) o la última que usaste.
+  try {
+    const t = new URLSearchParams(location.search).get("tab") || localStorage.getItem("costos-tab");
+    const b = /^[a-z]+$/.test(t || "") && document.querySelector('nav.tabs button[data-tab="' + t + '"]');
+    if (b) b.click();
+  } catch (e) {}
 
   // ---------- Arranque ----------
   store = s;

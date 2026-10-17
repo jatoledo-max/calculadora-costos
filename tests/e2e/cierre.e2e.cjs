@@ -8,7 +8,7 @@ const capturas = process.argv[2];
 
 (async () => {
   const b = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {});
-  const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true });
+  const ctx = await b.newContext({ serviceWorkers: "block", viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true });
   await ctx.route("**/config.js", (r) => r.fulfill({ contentType: "text/javascript", body: 'export const CONFIG = { SUPABASE_URL: "", SUPABASE_ANON_KEY: "", PRECIO_MENSUAL_TEXTO: "$ 20.000" };' }));
   await ctx.addInitScript((d) => {
     if (!sessionStorage.getItem("sembrado")) {
@@ -83,6 +83,7 @@ const capturas = process.argv[2];
   await prod("Lomito simple").click();
   await p.click(".pago.efectivo");
   await esperaTexto(".caja-msg", /Venta 3 guardada/);
+  await p.waitForTimeout(500); // justo después de cobrar, un toque en el mismo lugar se toma como doble toque y se ignora
   const v3 = p.locator("#caja-ventas .venta", { hasText: "Venta 3" });
   await v3.getByRole("button", { name: "Anular" }).click();
   await v3.getByRole("button", { name: "Anular venta 3" }).click();

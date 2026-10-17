@@ -6,7 +6,7 @@ const datos = require("./datos-demo.cjs");
 
 (async () => {
   const b = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {});
-  const ctx = await b.newContext({ viewport: { width: 1280, height: 900 } });
+  const ctx = await b.newContext({ serviceWorkers: "block", viewport: { width: 1280, height: 900 } });
   await ctx.route("**/config.js", (r) => r.fulfill({ contentType: "text/javascript", body: 'export const CONFIG = { SUPABASE_URL: "", SUPABASE_ANON_KEY: "" };' }));
   await ctx.addInitScript((d) => { localStorage.clear(); localStorage.setItem("costos-demo-v1", JSON.stringify(d)); localStorage.setItem("costos-tab", "productos"); }, datos);
   const p = await ctx.newPage();

@@ -138,7 +138,11 @@ async function arrancar() {
   async function seguir(session) {
     if (!session) { mostrar("login"); return; }
     const { data: negs, error } = await supabase.from("negocios").select("*").limit(1);
-    if (error) { mostrar("login"); $("#login-msg").textContent = "No se pudo cargar tu cuenta. Recargá la página."; return; }
+    if (error) {
+      mostrar("login");
+      $("#login-msg").textContent = navigator.onLine === false ? "Sin internet. Conectate y recargá la página." : "No se pudo cargar tu cuenta. Recargá la página.";
+      return;
+    }
     let neg = negs[0];
     if (!neg) {
       mostrar("alta");
@@ -208,4 +212,29 @@ async function arrancar() {
   seguir(data.session);
 }
 
+// ---------- Celular: instalar como app y avisar sin conexión ----------
+function iniciarCelular() {
+  // El service worker hace que la app se pueda instalar y que abra aunque no haya internet (sw.js).
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+
+  const aviso = $("#sin-conexion");
+  const conexion = () => { aviso.hidden = navigator.onLine !== false; };
+  window.addEventListener("online", conexion);
+  window.addEventListener("offline", conexion);
+  conexion();
+
+  // Android (Chrome) avisa cuando la app se puede instalar: guardamos el aviso y mostramos el botón.
+  let pedido = null;
+  const boton = $("#btn-instalar");
+  window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); pedido = e; boton.hidden = false; });
+  window.addEventListener("appinstalled", () => { pedido = null; boton.hidden = true; });
+  boton.onclick = async () => {
+    if (!pedido) return;
+    pedido.prompt();
+    await pedido.userChoice;
+    pedido = null; boton.hidden = true;
+  };
+}
+
+iniciarCelular();
 arrancar();

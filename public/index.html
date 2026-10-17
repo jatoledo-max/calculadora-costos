@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>CalculadoraDeGananciasMV</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#131313">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="icon" type="image/png" sizes="32x32" href="iconos/favicon-32.png">
+<link rel="apple-touch-icon" href="iconos/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;700&family=Public+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
 <link rel="stylesheet" href="styles.css">
@@ -66,14 +71,19 @@
         <button id="tab-delivery" role="tab" aria-selected="false" data-tab="delivery">Delivery</button>
         <button id="tab-negocio" role="tab" aria-selected="false" data-tab="negocio">Mi negocio</button>
       </nav>
+      <button class="btn-instalar" id="btn-instalar" type="button" hidden>Instalar app</button>
       <button class="btn-tema" id="btn-tema" type="button"></button>
     </header>
   </div>
+  <div id="sin-conexion" class="sin-conexion" role="status" hidden>Sin internet. Las ventas no se pueden guardar hasta que vuelva la conexión. El carrito queda guardado.</div>
   <div class="wrap">
   <div class="status" id="status">Conectando…</div>
 
   <section id="view-caja" data-view="caja" hidden>
-    <div id="caja-estado" class="caja-estado" role="status">Cargando la caja…</div>
+    <div class="caja-arriba">
+      <div id="caja-estado" class="caja-estado" role="status">Cargando la caja…</div>
+      <button id="caja-pantalla" class="chip-pantalla" type="button" aria-pressed="false" hidden>Pantalla siempre encendida</button>
+    </div>
     <div id="caja-abrir" class="card caja-abrir" hidden>
       <h2>Abrir la caja</h2>
       <p class="hint">Contá el efectivo con el que arrancás (el cambio) y abrí la caja para empezar a vender.</p>

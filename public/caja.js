@@ -33,6 +33,44 @@ export function iniciarCaja(calc, backend) {
     msgVentas: null, msgMovs: null,
     cierre: cierreVacio(),
   };
+  // El carrito se guarda en el celular: si se cierra la app o se recarga a mitad de una venta, sigue ahí.
+  // Incluye el id de la venta en curso, así un reintento después de recargar tampoco duplica.
+  const CLAVE_CARRITO = "caja-carrito-v1";
+  const CAMPOS_CARRITO = ["carrito", "envio", "cargoOtro", "descAbierto", "descMonto", "descMotivo", "pendienteId"];
+  try {
+    const g = JSON.parse(localStorage.getItem(CLAVE_CARRITO) || "null");
+    if (g && Array.isArray(g.carrito)) CAMPOS_CARRITO.forEach((k) => { if (k in g) st[k] = g[k]; });
+  } catch (e) {}
+  function guardarCarrito() {
+    try {
+      if (!st.carrito.length && !st.pendienteId) localStorage.removeItem(CLAVE_CARRITO);
+      else localStorage.setItem(CLAVE_CARRITO, JSON.stringify(Object.fromEntries(CAMPOS_CARRITO.map((k) => [k, st[k]]))));
+    } catch (e) {}
+  }
+
+  // Pantalla siempre encendida mientras la caja está abierta (si el celular lo permite). Se recuerda la elección.
+  const pantalla = { quiere: false, lock: null };
+  try { pantalla.quiere = localStorage.getItem("caja-pantalla") === "1"; } catch (e) {}
+  async function mantenerPantalla() {
+    const abierta = st.caja && st.caja.estado === "abierta";
+    if (pantalla.quiere && abierta && !pantalla.lock && document.visibilityState === "visible" && "wakeLock" in navigator) {
+      try {
+        pantalla.lock = await navigator.wakeLock.request("screen");
+        pantalla.lock.addEventListener("release", () => { pantalla.lock = null; renderPantalla(); });
+      } catch (e) { pantalla.lock = null; }
+    } else if ((!pantalla.quiere || !abierta) && pantalla.lock) {
+      await pantalla.lock.release().catch(() => {});
+      pantalla.lock = null;
+    }
+    renderPantalla();
+  }
+  function renderPantalla() {
+    const b = $("#caja-pantalla");
+    b.hidden = !("wakeLock" in navigator) || !(st.caja && st.caja.estado === "abierta");
+    b.setAttribute("aria-pressed", pantalla.quiere ? "true" : "false");
+    b.textContent = pantalla.quiere ? "Pantalla siempre encendida: sí" : "Pantalla siempre encendida: no";
+  }
+
   function movVacio() { return { tipo: "gasto", medio: "efectivo", signo: -1, importe: "", desc: "", fijos: false, pendienteId: null, enviando: false }; }
   function cierreVacio() { return { abierto: false, contado: "", banco: "", fondo: null, obs: "", enviando: false, msg: null }; }
 
@@ -75,6 +113,7 @@ export function iniciarCaja(calc, backend) {
     }
     st.cargado = true;
     render();
+    mantenerPantalla();
   }
 
   async function abrir() {
@@ -109,6 +148,7 @@ export function iniciarCaja(calc, backend) {
         ? { ok: true, texto: "Esta venta ya estaba guardada como Venta " + r.numero + " (" + fmtPesos(r.total) + ")." + (totalOk ? "" : " Revisá: el total guardado es distinto al del carrito.") }
         : { ok: true, texto: "Venta " + r.numero + " guardada · " + fmtPesos(r.total) };
       vaciar();
+      bloquearToques();
     } catch (e) {
       st.msg = e instanceof SinRespuesta
         ? { ok: false, texto: "No hubo respuesta. Tocá el medio de pago de nuevo: si ya se había guardado, no se duplica." }
@@ -117,6 +157,17 @@ export function iniciarCaja(calc, backend) {
     st.enviando = false;
     await recargar();
   }
+
+  // Después de cobrar, el carrito se vacía y la pantalla se acomoda: lo que queda bajo el dedo cambia.
+  // Un segundo toque en el mismo lugar enseguida (doble toque) se ignora, así no agrega un producto a la venta
+  // siguiente ni toca otro botón por accidente. Un toque en otro lugar funciona normal.
+  let ultimoToque = { x: 0, y: 0 }, zonaBloqueada = null;
+  function bloquearToques() { zonaBloqueada = { x: ultimoToque.x, y: ultimoToque.y, hasta: Date.now() + 400 }; }
+  $("#view-caja").addEventListener("pointerdown", (e) => { ultimoToque = { x: e.clientX, y: e.clientY }; }, true);
+  $("#view-caja").addEventListener("click", (e) => {
+    const z = zonaBloqueada;
+    if (z && Date.now() < z.hasta && Math.hypot(e.clientX - z.x, e.clientY - z.y) < 48) { e.preventDefault(); e.stopPropagation(); }
+  }, true);
 
   function vaciar() {
     st.carrito = []; st.envio = "retira"; st.cargoOtro = ""; st.descAbierto = false; st.descMonto = ""; st.descMotivo = "";
@@ -213,6 +264,8 @@ export function iniciarCaja(calc, backend) {
     renderMovs();
     renderVentas();
     renderCierre();
+    renderPantalla();
+    guardarCarrito();
   }
 
   function renderEstado() {
@@ -409,6 +462,7 @@ export function iniciarCaja(calc, backend) {
     const dc = $("#caja-desc-chip"); if (dc) dc.textContent = t.desc ? "Descuento − " + fmtPesos(t.desc / 100) : "Descuento";
     const r = $("#caja-div-resto"); if (r) r.textContent = "Transferencia: " + fmtPesos(dividido().tr / 100);
     const ok = $("#caja-div-ok"); if (ok) ok.disabled = st.enviando || !dividido().valido;
+    guardarCarrito();
   }
 
   // Cómo va la caja (abierta) o el informe del cierre (cerrada). Los números los calcula la base: resumen_caja.
@@ -734,6 +788,15 @@ export function iniciarCaja(calc, backend) {
   $("#caja-btn-abrir").onclick = abrir;
   $("#caja-saldo").addEventListener("input", (e) => e.target.setCustomValidity(""));
   calc.alCambiar(() => { if (st.cargado) render(); });
+  $("#caja-pantalla").onclick = () => {
+    pantalla.quiere = !pantalla.quiere;
+    try { localStorage.setItem("caja-pantalla", pantalla.quiere ? "1" : "0"); } catch (e) {}
+    mantenerPantalla();
+  };
+  // El celular suelta el bloqueo cuando la app pasa a segundo plano: al volver se pide de nuevo.
+  document.addEventListener("visibilitychange", mantenerPantalla);
+  // Cuando vuelve internet, si la caja no se había podido cargar, se intenta de nuevo sola.
+  window.addEventListener("online", () => { if (st.errorCarga) recargar(); });
   render();
   recargar();
 }

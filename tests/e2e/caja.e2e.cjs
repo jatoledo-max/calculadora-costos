@@ -8,7 +8,7 @@ const capturas = process.argv[2];
 
 (async () => {
   const b = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {});
-  const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true });
+  const ctx = await b.newContext({ serviceWorkers: "block", viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true });
   // Modo demo: config.js vacío, datos de ejemplo en el navegador.
   await ctx.route("**/config.js", (r) => r.fulfill({ contentType: "text/javascript", body: 'export const CONFIG = { SUPABASE_URL: "", SUPABASE_ANON_KEY: "", PRECIO_MENSUAL_TEXTO: "$ 20.000" };' }));
   await ctx.addInitScript((d) => {
@@ -100,6 +100,8 @@ const capturas = process.argv[2];
   await p.waitForFunction(() => /Venta 5 guardada/.test(document.querySelector(".caja-msg")?.textContent || ""));
   await p.waitForTimeout(300);
   assert.equal((await ventasGuardadas()).length, 5, "el doble toque duplicó la venta");
+  assert.match(await p.textContent("#caja-carrito"), /Tocá un producto/, "el segundo toque cayó en otro botón");
+  assert.equal(await p.evaluate(() => document.querySelector("#caja-resumen").open), true, "el segundo toque cerró el resumen");
 
   // 7. Productos sin precio no se pueden tocar; el carrito se puede vaciar con ✕.
   await cat("Hamburguesas");
