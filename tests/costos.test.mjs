@@ -2,7 +2,7 @@
 // Los números esperados están hechos a mano en los comentarios.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { crearCostos } from "../public/costos.js";
+import { crearCostos, categoriaDe, ordenarCategorias } from "../public/costos.js";
 
 const cerca = (real, esperado, msg) => assert.ok(Math.abs(real - esperado) < 0.005, `${msg}: dio ${real}, se esperaba ${esperado}`);
 
@@ -117,4 +117,12 @@ test("una promo cuenta como los productos que lleva (para gastos fijos)", () => 
   assert.equal(C.costoParaVenta("promo3").unidades, 3);
   assert.equal(C.costoParaVenta("lomito").unidades, 1);
   assert.equal(C.unidadesDe(estado.productos.bucle) >= 1, true);
+});
+
+test("categorías: opcionales, propias por nombre y después Promos, Extras y Otros", () => {
+  assert.equal(categoriaDe({ categoria: "  Lomitos " }), "Lomitos");
+  assert.equal(categoriaDe({ tipo: "promo" }), "Promos");
+  assert.equal(categoriaDe({ tipo: "extra", categoria: "" }), "Extras");
+  assert.equal(categoriaDe({}), "Otros");
+  assert.deepEqual(ordenarCategorias(["Otros", "Lomitos", "Promos", "Hamburguesas", "Extras", "Lomitos"]), ["Hamburguesas", "Lomitos", "Promos", "Extras", "Otros"]);
 });

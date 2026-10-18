@@ -5,6 +5,14 @@ import { redondear } from "./dinero.js";
 
 export const UNID = { kg: { base: "g", f: 1000 }, l: { base: "ml", f: 1000 }, u: { base: "u", f: 1 } };
 
+// Categoría de un producto (opcional): la que puso el usuario, o una según el tipo.
+// Orden: las categorías propias por nombre, después Promos, Extras y Otros. La usan la lista de Productos y la caja.
+export const categoriaDe = (p) => (p.categoria || "").trim() || (p.tipo === "promo" ? "Promos" : p.tipo === "extra" ? "Extras" : "Otros");
+export function ordenarCategorias(cats) {
+  const peso = (c) => (c === "Promos" ? 1 : c === "Extras" ? 2 : c === "Otros" ? 3 : 0);
+  return [...new Set(cats)].sort((a, b) => peso(a) - peso(b) || a.localeCompare(b, "es"));
+}
+
 export function crearCostos(estado) {
   // Rendimiento: cuánto producto útil sale de lo comprado (100% si no se cargó).
   // Merma: lo que se pierde al preparar, cocinar o por vencimiento (0% si no se cargó).

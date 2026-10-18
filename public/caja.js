@@ -3,6 +3,7 @@
 // cada operación la valida y la guarda la base.
 import { fmtPesos, aCentavos } from "./dinero.js";
 import { SinRespuesta } from "./stores.js";
+import { categoriaDe as catDe, ordenarCategorias } from "./costos.js";
 import { MEDIOS, pintarInforme, totalPendientes } from "./informe.js";
 
 export function iniciarCaja(calc, backend) {
@@ -77,15 +78,12 @@ export function iniciarCaja(calc, backend) {
   // ---------- Catálogo ----------
   const prods = () => calc.estado.productos;
   const vendible = (p) => p && !p.esPreparacion && p.enCaja !== false;
-  const catDe = (p) => (p.categoria || "").trim() || (p.tipo === "promo" ? "Promos" : p.tipo === "extra" ? "Extras" : "Otros");
   const precioDe = (p, opcionId) => {
     const op = opcionId ? (p.opciones || []).find((o) => o.id === opcionId) : null;
     return (Number(p.precioVenta) || 0) + (op ? Number(op.precioExtra) || 0 : 0);
   };
   function categorias() {
-    const peso = (c) => (c === "Promos" ? 1 : c === "Extras" ? 2 : c === "Otros" ? 3 : 0);
-    const cats = [...new Set(Object.values(prods()).filter(vendible).map(catDe))];
-    return cats.sort((a, b) => peso(a) - peso(b) || a.localeCompare(b, "es"));
+    return ordenarCategorias(Object.values(prods()).filter(vendible).map(catDe));
   }
   const cargoEnvioDefault = () => Number(((calc.estado.ajustes || {}).delivery || {}).cobroEnvio) || 0;
 
