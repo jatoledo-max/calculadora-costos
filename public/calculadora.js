@@ -1,4 +1,4 @@
-import { crearCostos, UNID } from "./costos.js";
+import { crearCostos, UNID, categoriaDe, ordenarCategorias } from "./costos.js";
 
 // Lógica de la calculadora: insumos (con rendimiento y merma), productos, preparaciones, packaging,
 // gastos fijos, delivery y precio sugerido.
@@ -73,14 +73,27 @@ export function iniciarCalculadora(s) {
     }
     const ventas = prods.filter(([, p]) => !p.esPreparacion);
     const preps = prods.filter(([, p]) => p.esPreparacion);
-    if (!state.sel || !state.productos[state.sel]) state.sel = (ventas[0] || prods[0])[0];
-    ventas.concat(preps).forEach(([id, p], n) => {
-      if (n === ventas.length && preps.length) {
-        const h = document.createElement("div");
-        h.className = "grp prep";
-        h.textContent = "Preparaciones propias";
-        el.appendChild(h);
-      }
+    // Productos agrupados por categoría (Lomitos, Hamburguesas…). Si nadie puso categorías, la lista queda como siempre.
+    const cats = ordenarCategorias(ventas.map(([, p]) => categoriaDe(p)));
+    const conTitulos = cats.length > 1;
+    const orden = cats.flatMap((c) => ventas.filter(([, p]) => categoriaDe(p) === c));
+    if (!state.sel || !state.productos[state.sel]) state.sel = (orden[0] || prods[0])[0];
+    const titulo = (txt, cls) => {
+      const h = document.createElement("div");
+      h.className = cls;
+      h.textContent = txt;
+      el.appendChild(h);
+    };
+    const dl = $("#newprod-cats");
+    if (dl) {
+      dl.textContent = "";
+      ventas.map(([, p]) => (p.categoria || "").trim()).filter((c, i, a) => c && a.indexOf(c) === i).sort((a, b) => a.localeCompare(b, "es"))
+        .forEach((c) => { const o = document.createElement("option"); o.value = c; dl.appendChild(o); });
+    }
+    let catActual = null;
+    orden.concat(preps).forEach(([id, p], n) => {
+      if (n < orden.length && conTitulos && categoriaDe(p) !== catActual) titulo((catActual = categoriaDe(p)), "grp");
+      if (n === orden.length && preps.length) titulo("Preparaciones propias", "grp prep");
       const { total: tIns, faltas: fl } = costoProducto(p);
       const total = p.esPreparacion ? tIns : tIns + fijoPorUnidad() * unidadesDe(p);
       const pv = Number(p.precioVenta) || 0;
@@ -176,7 +189,7 @@ export function iniciarCalculadora(s) {
         <h2 class="sec-t">En la caja</h2>
         <div class="caja-conf">
           <label class="f">Tipo<select id="f-ctipo"><option value="producto">Producto</option><option value="promo">Promo</option><option value="extra">Extra</option></select></label>
-          <label class="f">Categoría<input id="f-cat" list="f-cats" placeholder="Ej: Lomitos" maxlength="40"><datalist id="f-cats"></datalist></label>
+          <label class="f">Categoría (opcional)<input id="f-cat" list="f-cats" placeholder="Ej: Lomitos" maxlength="40"><datalist id="f-cats"></datalist></label>
           <label class="chk"><input type="checkbox" id="f-encaja"> <span>Mostrar en la caja</span></label>
         </div>
         <p class="hint">Para armar una promo, agregá en la receta los productos que lleva (por ejemplo 2 × Hamburguesa completa). Si van juntos en un envase más grande, marcá "sin su caja" y sumá el envase.</p>
@@ -464,8 +477,11 @@ export function iniciarCalculadora(s) {
     state.productos[id] = $("#newprod-prep").checked
       ? { nombre: n, items: [], esPreparacion: true, rinde: 0, rindeUnidad: "g" }
       : { nombre: n, items: [], margen: margenDefault(), precioVenta: null };
+    const cat = $("#newprod-cat").value.trim();
+    if (cat && !state.productos[id].esPreparacion) state.productos[id].categoria = cat;
     state.sel = id;
     $("#newprod-name").value = "";
+    $("#newprod-cat").value = "";
     $("#newprod-prep").checked = false;
     render();
     store.set("productos", id, state.productos[id]);
