@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>CalculadoraDeGananciasMV</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#131313">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="icon" type="image/png" sizes="32x32" href="iconos/favicon-32.png">
+<link rel="apple-touch-icon" href="iconos/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;700&family=Public+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
 <link rel="stylesheet" href="styles.css">
@@ -59,17 +64,54 @@
     <header class="top">
       <div class="logo-id"><img id="neg-logo-img" alt="" hidden><h1><span id="neg-titulo"></span> <small>Cuánto te cuesta cada producto y a cuánto venderlo</small></h1></div>
       <nav class="tabs" role="tablist">
+        <button id="tab-caja" role="tab" aria-selected="false" data-tab="caja">Caja</button>
+        <button id="tab-informes" role="tab" aria-selected="false" data-tab="informes">Informes</button>
         <button id="tab-productos" role="tab" aria-selected="true" data-tab="productos">Productos</button>
         <button id="tab-insumos" role="tab" aria-selected="false" data-tab="insumos">Insumos</button>
         <button id="tab-gastos" role="tab" aria-selected="false" data-tab="gastos">Gastos fijos</button>
         <button id="tab-delivery" role="tab" aria-selected="false" data-tab="delivery">Delivery</button>
         <button id="tab-negocio" role="tab" aria-selected="false" data-tab="negocio">Mi negocio</button>
       </nav>
+      <button class="btn-instalar" id="btn-instalar" type="button" hidden>Instalar app</button>
       <button class="btn-tema" id="btn-tema" type="button"></button>
     </header>
   </div>
+  <div id="sin-conexion" class="sin-conexion" role="status" hidden>Sin internet. Las ventas no se pueden guardar hasta que vuelva la conexión. El carrito queda guardado.</div>
   <div class="wrap">
   <div class="status" id="status">Conectando…</div>
+
+  <section id="view-caja" data-view="caja" hidden>
+    <div class="caja-arriba">
+      <div id="caja-estado" class="caja-estado" role="status">Cargando la caja…</div>
+      <button id="caja-pantalla" class="chip-pantalla" type="button" aria-pressed="false" hidden>Pantalla siempre encendida</button>
+    </div>
+    <div id="caja-abrir" class="card caja-abrir" hidden>
+      <h2>Abrir la caja</h2>
+      <p class="hint">Contá el efectivo con el que arrancás (el cambio) y abrí la caja para empezar a vender.</p>
+      <label class="f">Efectivo al empezar ($)<input id="caja-saldo" class="n grande" type="number" min="0" step="any" inputmode="numeric" placeholder="0"></label>
+      <button class="btn primary grande" id="caja-btn-abrir" type="button">Abrir caja</button>
+      <p class="caja-msg-txt" id="caja-abrir-msg" role="alert"></p>
+    </div>
+    <div id="caja-pos" class="caja-pos" hidden>
+      <div class="caja-catalogo">
+        <div class="caja-cats" id="caja-cats" aria-label="Categorías"></div>
+        <div class="caja-prods" id="caja-prods"></div>
+      </div>
+      <aside class="caja-carrito card" id="caja-carrito" aria-label="Venta en curso"></aside>
+    </div>
+    <details id="caja-resumen" class="card caja-resumen" open hidden></details>
+    <div id="caja-movs" class="card caja-movs" hidden></div>
+    <div id="caja-ventas" class="card caja-ventas" hidden></div>
+    <div id="caja-cierre" class="card caja-cierre" hidden></div>
+  </section>
+
+  <section id="view-informes" data-view="informes" hidden>
+    <div id="inf-periodo" class="card inf-card"></div>
+    <div id="inf-resumen" class="card inf-card caja-resumen"></div>
+    <div id="inf-cajas" class="card inf-card"></div>
+    <div id="inf-descargas" class="card inf-card"></div>
+    <div id="inf-pendientes" class="card inf-card"></div>
+  </section>
 
   <section id="view-productos" data-view="productos">
     <div class="prod-layout">
@@ -173,6 +215,7 @@
         <span id="neg-msg" class="saved" role="status"></span>
       </form>
     </div>
+    <div class="card copia" id="copia" style="max-width:560px"></div>
     <div class="card" style="max-width:560px">
       <h3>Suscripción</h3>
       <p id="sub-estado" class="hint"></p>

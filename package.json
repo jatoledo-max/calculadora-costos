@@ -1,0 +1,11 @@
+{
+  "name": "calculadora-costos",
+  "private": true,
+  "type": "module",
+  "description": "Sin dependencias: solo se usa para correr las pruebas.",
+  "scripts": {
+    "test": "node --test",
+    "test:db": "tests/db/correr.sh",
+    "test:todo": "tests/todas.sh"
+  }
+}

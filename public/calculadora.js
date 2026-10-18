@@ -1,3 +1,5 @@
+import { crearCostos, UNID } from "./costos.js";
+
 // Lógica de la calculadora: insumos (con rendimiento y merma), productos, preparaciones, packaging,
 // gastos fijos, delivery y precio sugerido.
 // Recibe un "store" con subscribe(col, cb), set(col, id, body) y del(col, id).
@@ -5,7 +7,6 @@ export function iniciarCalculadora(s) {
   const $ = (s) => document.querySelector(s);
   const fmt = (n) => "$ " + Math.round(n || 0).toLocaleString("es-AR");
   const fmt2 = (n) => "$ " + (n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const UNID = { kg: { base: "g", f: 1000 }, l: { base: "ml", f: 1000 }, u: { base: "u", f: 1 } };
   const state = { insumos: {}, productos: {}, gastos: {}, ajustes: {}, sel: null, tab: "productos" };
 
   // ---------- Almacenamiento: db compartida si está, si no el navegador ----------
@@ -33,78 +34,20 @@ export function iniciarCalculadora(s) {
     inp.addEventListener("input", () => inp.setCustomValidity(""), { once: true });
   }
 
-  // ---------- Cálculos ----------
-  // Rendimiento: cuánto producto útil sale de lo comprado (100% si no se cargó).
-  // Merma: lo que se pierde al preparar, cocinar o por vencimiento (0% si no se cargó).
-  const rendimiento = (ins) => (Number(ins.rendimiento) > 0 ? Math.min(Number(ins.rendimiento), 100) : 100);
-  const merma = (ins) => Math.min(Math.max(Number(ins.merma) || 0, 0), 95);
-  function costoUso(ins) {
-    // costo por g / ml / u útil = (precio de compra / rendimiento) / (1 − merma):
-    // si se pierde un 30%, para usar 70 g hay que preparar 100 g.
-    if (!ins || !ins.cantidad || !ins.precio) return 0;
-    const bruto = ins.precio / (ins.cantidad * UNID[ins.unidad || "u"].f);
-    return bruto / (rendimiento(ins) / 100) / (1 - merma(ins) / 100);
-  }
-  // Un renglón de receta apunta a un insumo ({insumo}) o a una preparación propia ({prep}).
-  function itemInfo(it, depth) {
-    if (it.prep) {
-      const pr = state.productos[it.prep];
-      if (!pr) return { nombre: "(preparación borrada)", unidad: "", cu: 0, faltas: ["una preparación de la receta fue borrada"] };
-      const sub = depth < 5 ? costoProducto(pr, depth + 1) : { total: 0, faltas: [] };
-      const cu = pr.rinde > 0 ? sub.total / pr.rinde : 0;
-      const faltas = sub.faltas.slice();
-      if (!(pr.rinde > 0)) faltas.push("cuánto rinde la preparación " + pr.nombre);
-      return { nombre: pr.nombre, unidad: pr.rindeUnidad || "g", cu, prep: true, faltas };
-    }
-    const ins = state.insumos[it.insumo];
-    if (!ins) return { nombre: "(insumo borrado)", unidad: "", cu: 0, faltas: ["un insumo de la receta fue borrado"] };
-    const faltas = !(Number(ins.cantidad) > 0) || ins.precio == null || ins.precio === "" ? ["la cantidad o el precio de compra de " + ins.nombre + " (pestaña Insumos)"] : [];
-    return { nombre: ins.nombre, unidad: UNID[ins.unidad].base, cu: costoUso(ins), packaging: !!ins.packaging, faltas };
-  }
-  function costoProducto(p, depth) {
-    depth = depth || 0;
-    // faltas: datos sin cargar que hacen que el costo dé más bajo que el real.
-    let total = 0, packaging = 0;
-    const faltas = [];
-    const filas = (p.items || []).map((it) => {
-      const info = itemInfo(it, depth);
-      const c = info.cu * (Number(it.cantidad) || 0);
-      total += c;
-      if (info.packaging) packaging += c;
-      info.faltas.forEach((f) => { if (!faltas.includes(f)) faltas.push(f); });
-      if (!(Number(it.cantidad) > 0)) faltas.push("la cantidad de " + info.nombre + " en la receta");
-      return { it, info, c };
-    });
-    return { total, packaging, filas, faltas };
-  }
+  // ---------- Cálculos (en costos.js, compartidos con la caja) ----------
+  const costos = crearCostos(state);
+  const { rendimiento, merma, costoUso, itemInfo, costoProducto, unidadesDe, costoConOpcion, precioSugerido, margenReal,
+    totalFijos, unidadesMes, fijoPorUnidad, delivery, naftaPorPedido, envioIncl } = costos;
+  const alCambiar = []; // otras pestañas (la caja) que se redibujan cuando cambian los datos
   const porUnidadTxt = (p, total) => {
     const u = p.rindeUnidad || "g";
     if (!(p.rinde > 0)) return "Cargá cuánto rinde";
     return u === "u" ? fmt2(total / p.rinde) + " por unidad" : fmt2((total / p.rinde) * 100) + " cada 100 " + u;
   };
-  // El envío incluido en el precio se suma aparte: no lleva margen porque es para pagar el delivery.
-  function precioSugerido(costo, margen, envio) {
-    const m = Math.min(Math.max(Number(margen) || 0, 0), 95) / 100;
-    const p = costo / (1 - m) + (Number(envio) || 0);
-    return Math.ceil(p / 100) * 100; // redondeo a $100
-  }
-  const margenReal = (costo, precio) => (precio > 0 ? (1 - costo / precio) * 100 : null);
   // Sin gastos fijos el margen es "bruto" (solo insumos) y tiene que ser alto; con gastos fijos es ganancia neta.
   const clsMargen = (m) => (m == null ? "" : hayFijos() ? (m >= 20 ? "ok" : m >= 10 ? "mid" : "low") : (m >= 55 ? "ok" : m >= 40 ? "mid" : "low"));
-
-  // ---------- Gastos fijos ----------
-  // Se reparten en partes iguales entre todo lo que se vende en el mes.
-  const totalFijos = () => Object.values(state.gastos).reduce((a, g) => a + (Number(g.monto) || 0), 0);
-  const unidadesMes = () => Number((state.ajustes.general || {}).unidadesMes) || 0;
-  const fijoPorUnidad = () => (unidadesMes() > 0 ? totalFijos() / unidadesMes() : 0);
   const hayFijos = () => fijoPorUnidad() > 0;
   const margenDefault = () => (hayFijos() ? 30 : 60);
-
-  // ---------- Delivery ----------
-  // La nafta se reparte entre los pedidos con delivery, no entre los productos: va aparte del costo del producto.
-  const delivery = () => state.ajustes.delivery || {};
-  const naftaPorPedido = () => (Number(delivery().pedidosMes) > 0 ? (Number(delivery().naftaMes) || 0) / Number(delivery().pedidosMes) : 0);
-  const envioIncl = (p) => (p && !p.esPreparacion ? Math.max(Number(p.envioIncluido) || 0, 0) : 0);
 
   // ---------- Render ----------
   function render() {
@@ -115,6 +58,7 @@ export function iniciarCalculadora(s) {
     renderInsumos();
     renderGastos();
     renderDelivery();
+    alCambiar.forEach((fn) => fn());
   }
   function prodsOrdenados() {
     return Object.entries(state.productos).sort((a, b) => (a[1].nombre || "").localeCompare(b[1].nombre || "", "es"));
@@ -138,7 +82,7 @@ export function iniciarCalculadora(s) {
         el.appendChild(h);
       }
       const { total: tIns, faltas: fl } = costoProducto(p);
-      const total = p.esPreparacion ? tIns : tIns + fijoPorUnidad();
+      const total = p.esPreparacion ? tIns : tIns + fijoPorUnidad() * unidadesDe(p);
       const pv = Number(p.precioVenta) || 0;
       const env = envioIncl(p);
       const m = margenReal(total, pv - env);
@@ -170,7 +114,7 @@ export function iniciarCalculadora(s) {
     if (!p) { el.innerHTML = ""; return; }
     const id = state.sel;
     const { total, packaging, filas, faltas } = costoProducto(p);
-    const fijo = fijoPorUnidad();
+    const fijo = p.esPreparacion ? 0 : fijoPorUnidad() * unidadesDe(p);
     const costoTotal = total + fijo;
     const margen = p.margen ?? margenDefault();
     const env = envioIncl(p);
@@ -180,7 +124,7 @@ export function iniciarCalculadora(s) {
     const mr = margenReal(costoTotal, ingreso);
     const desglose = [fmt(total - packaging) + " de insumos"];
     if (packaging) desglose.push(fmt(packaging) + " de packaging");
-    if (fijo) desglose.push(fmt(fijo) + " de gastos fijos");
+    if (fijo) desglose.push(fmt(fijo) + " de gastos fijos" + (unidadesDe(p) > 1 ? " (cuenta como " + unidadesDe(p) + " productos)" : ""));
 
     el.innerHTML = `
       <div class="ficha sec">
@@ -227,6 +171,25 @@ export function iniciarCalculadora(s) {
             <button class="btn" type="submit">Agregar</button>
           </form>
         </div>
+      </div>
+      <div class="ficha sec" ${p.esPreparacion ? "hidden" : ""}>
+        <h2 class="sec-t">En la caja</h2>
+        <div class="caja-conf">
+          <label class="f">Tipo<select id="f-ctipo"><option value="producto">Producto</option><option value="promo">Promo</option><option value="extra">Extra</option></select></label>
+          <label class="f">Categoría<input id="f-cat" list="f-cats" placeholder="Ej: Lomitos" maxlength="40"><datalist id="f-cats"></datalist></label>
+          <label class="chk"><input type="checkbox" id="f-encaja"> <span>Mostrar en la caja</span></label>
+        </div>
+        <p class="hint">Para armar una promo, agregá en la receta los productos que lleva (por ejemplo 2 × Hamburguesa completa). Si van juntos en un envase más grande, marcá "sin su caja" y sumá el envase.</p>
+        <h3>Opciones</h3>
+        <p class="hint">Cambian un insumo por otro al vender, como pan árabe en vez de pan francés.</p>
+        <div id="f-opciones" class="opciones"></div>
+        <form class="addrow" id="f-addop">
+          <label class="f">Nombre<input id="f-op-nombre" placeholder="Ej: Pan árabe" required maxlength="40"></label>
+          <label class="f">Cambia<select id="f-op-de" required></select></label>
+          <label class="f">Por<select id="f-op-por" required></select></label>
+          <label class="f">Precio extra ($)<input id="f-op-precio" class="n" type="number" min="0" step="any" value="0"></label>
+          <button class="btn" type="submit">Agregar opción</button>
+        </form>
       </div>`;
 
     el.querySelectorAll(".aviso-falta span").forEach((sp, n) => { sp.textContent = faltas[n]; });
@@ -257,10 +220,16 @@ export function iniciarCalculadora(s) {
       tr.cells[0].textContent = info.nombre;
       if (info.prep) tr.cells[0].insertAdjacentHTML("beforeend", ' <span class="tag">preparación</span>');
       if (info.packaging) tr.cells[0].insertAdjacentHTML("beforeend", ' <span class="tag">packaging</span>');
+      if (info.producto) {
+        tr.cells[0].insertAdjacentHTML("beforeend", ' <span class="tag">producto</span> <label class="sinpack"><input type="checkbox"> sin su caja</label>');
+        const sp = tr.cells[0].querySelector(".sinpack input");
+        sp.checked = !!it.sinPackaging;
+        sp.onchange = () => { const items = (p.items || []).slice(); items[idx] = Object.assign({}, it, { sinPackaging: sp.checked }); saveProd(id, { items }); };
+      }
       tr.cells[2].textContent = info.unidad;
       tr.cells[3].innerHTML = '<span></span><span class="peso"> ' + pct.toFixed(0) + "%</span>";
       tr.cells[3].firstChild.textContent = fmt2(c);
-      const inp = tr.querySelector("input");
+      const inp = tr.querySelector("input.n");
       inp.value = it.cantidad;
       inp.id = "f-cant-" + idx;
       inp.onchange = () => {
@@ -282,7 +251,13 @@ export function iniciarCalculadora(s) {
       preps.forEach(([pid, x]) => { const o = document.createElement("option"); o.value = "p:" + pid; o.textContent = x.nombre; g2.appendChild(o); });
       sel.appendChild(g2);
     }
-    const selItem = () => { const [k, v] = sel.value.split(":"); return k === "p" ? { prep: v } : k === "i" ? { insumo: v } : null; };
+    const ventasSel = p.esPreparacion ? [] : prodsOrdenados().filter(([pid, x]) => !x.esPreparacion && pid !== id);
+    if (ventasSel.length) {
+      const g3 = document.createElement("optgroup"); g3.label = "Productos (para armar promos)";
+      ventasSel.forEach(([pid, x]) => { const o = document.createElement("option"); o.value = "v:" + pid; o.textContent = x.nombre; g3.appendChild(o); });
+      sel.appendChild(g3);
+    }
+    const selItem = () => { const [k, v] = sel.value.split(":"); return k === "p" ? { prep: v } : k === "i" ? { insumo: v } : k === "v" ? { producto: v } : null; };
     const updU = () => { const it = selItem(); const inf = it && itemInfo(it, 0); $("#f-add-u").textContent = inf && inf.unidad ? "(" + inf.unidad + ")" : ""; };
     sel.onchange = updU; updU();
     $("#f-add").onsubmit = (e) => {
@@ -301,6 +276,53 @@ export function iniciarCalculadora(s) {
     pvi.onchange = () => saveProd(id, { precioVenta: Number(pvi.value) || null });
     const evi = $("#f-envio"); evi.value = env || "";
     evi.onchange = () => saveProd(id, { envioIncluido: Number(evi.value) || 0 });
+    if (!p.esPreparacion) renderEnCaja(id, p);
+  }
+
+  // ---------- Ficha: cómo aparece en la caja y sus opciones ----------
+  function renderEnCaja(id, p) {
+    const ct = $("#f-ctipo"); ct.value = p.tipo || "producto";
+    ct.onchange = () => saveProd(id, { tipo: ct.value });
+    const cat = $("#f-cat"); cat.value = p.categoria || "";
+    cat.onchange = () => saveProd(id, { categoria: cat.value.trim() });
+    const cats = [...new Set(Object.values(state.productos).map((x) => (x.categoria || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
+    const dl = $("#f-cats"); dl.textContent = "";
+    cats.forEach((c) => { const o = document.createElement("option"); o.value = c; dl.appendChild(o); });
+    const ec = $("#f-encaja"); ec.checked = p.enCaja !== false;
+    ec.onchange = () => saveProd(id, { enCaja: ec.checked });
+
+    const ops = p.opciones || [];
+    const box = $("#f-opciones"); box.textContent = "";
+    const nombreIns = (iid) => (state.insumos[iid] ? state.insumos[iid].nombre : "(insumo borrado)");
+    const base = costoConOpcion(p, null).total;
+    if (!ops.length) box.innerHTML = '<p class="empty">Sin opciones.</p>';
+    ops.forEach((op, n) => {
+      const row = document.createElement("div");
+      row.className = "opcion";
+      const dif = costoConOpcion(p, op.id).total - base;
+      row.innerHTML = '<span class="nm"></span><span class="det"></span><button class="btn ghost" type="button" aria-label="Quitar opción">✕</button>';
+      row.querySelector(".nm").textContent = op.nombre;
+      row.querySelector(".det").textContent = nombreIns(op.reemplaza) + " → " + nombreIns(op.por) + " · costo " + (dif >= 0 ? "+ " : "− ") + fmt2(Math.abs(dif)) + " · precio + " + fmt(op.precioExtra);
+      row.querySelector("button").onclick = () => { const o2 = ops.slice(); o2.splice(n, 1); saveProd(id, { opciones: o2 }); };
+      box.appendChild(row);
+    });
+    // "Cambia": los insumos que la receta usa directo. "Por": cualquier insumo.
+    const deSel = $("#f-op-de"), porSel = $("#f-op-por");
+    const usados = [...new Set((p.items || []).filter((it) => it.insumo && state.insumos[it.insumo]).map((it) => it.insumo))];
+    const llenar = (selEl, ids) => {
+      selEl.textContent = "";
+      ids.sort((a, b) => nombreIns(a).localeCompare(nombreIns(b), "es")).forEach((iid) => { const o = document.createElement("option"); o.value = iid; o.textContent = nombreIns(iid); selEl.appendChild(o); });
+    };
+    llenar(deSel, usados);
+    llenar(porSel, Object.keys(state.insumos));
+    $("#f-addop").onsubmit = (e) => {
+      e.preventDefault();
+      const nombre = $("#f-op-nombre").value.trim();
+      if (!nombre || !deSel.value || !porSel.value) return;
+      if (deSel.value === porSel.value) return rechazar(porSel, "Elegí un insumo distinto al que se cambia.");
+      const precioExtra = Math.max(Number($("#f-op-precio").value) || 0, 0);
+      saveProd(id, { opciones: ops.concat([{ id: newId(), nombre, reemplaza: deSel.value, por: porSel.value, precioExtra }]) });
+    };
   }
 
   function saveProd(id, patch) {
@@ -478,7 +500,12 @@ export function iniciarCalculadora(s) {
     btnTema.onclick = () => { const t = oscuro() ? "light" : "dark"; document.documentElement.dataset.theme = t; try { localStorage.setItem("costos-tema", t); } catch (e) {} pintar(); };
     pintar();
   }
-  try { const t = localStorage.getItem("costos-tab"); const b = t && document.querySelector('nav.tabs button[data-tab="' + t + '"]'); if (b) b.click(); } catch (e) {}
+  // Pestaña inicial: la que pide la dirección (la app instalada abre en ?tab=caja) o la última que usaste.
+  try {
+    const t = new URLSearchParams(location.search).get("tab") || localStorage.getItem("costos-tab");
+    const b = /^[a-z]+$/.test(t || "") && document.querySelector('nav.tabs button[data-tab="' + t + '"]');
+    if (b) b.click();
+  } catch (e) {}
 
   // ---------- Arranque ----------
   store = s;
@@ -490,4 +517,7 @@ export function iniciarCalculadora(s) {
   store.subscribe("productos", (m) => { state.productos = m; render(); });
   store.subscribe("gastos", (m) => { state.gastos = m; render(); });
   store.subscribe("ajustes", (m) => { state.ajustes = m; render(); });
+  // guardarAjuste: para que otras pestañas (Informes: pagos pendientes) guarden en "ajustes" con la misma conexión.
+  const guardarAjuste = (id, body) => store.set("ajustes", id, body);
+  return { estado: state, costos, alCambiar: (fn) => alCambiar.push(fn), guardarAjuste };
 }
