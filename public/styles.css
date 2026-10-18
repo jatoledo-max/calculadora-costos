@@ -103,6 +103,12 @@ label.f { display: grid; gap: 4px; font-size: 0.8rem; color: var(--muted); }
 .newprod label.chk input { flex: none; width: 20px; height: 20px; margin: 0.1em 0 0; accent-color: var(--accent); }
 /* Preparaciones propias en bordó */
 .grp.prep { color: var(--wine); }
+button.grp { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin-top: 4px; padding: 6px 4px; background: none; border: 0; border-bottom: 1px solid var(--line); font-family: inherit; text-align: left; cursor: pointer; }
+button.grp .grp-c { font-weight: 600; letter-spacing: 0; border-radius: 999px; padding: 1px 8px; background: var(--glass-strong, var(--surface)); border: 1px solid var(--line); }
+button.grp svg { margin-left: auto; flex: none; transition: transform 0.15s; }
+button.grp[aria-expanded="false"] svg { transform: rotate(-90deg); }
+button.grp:hover, button.grp:focus-visible { color: var(--ink); }
+button.grp.prep:hover, button.grp.prep:focus-visible { color: var(--wine); }
 .pitem.prep { border-color: color-mix(in srgb, var(--wine) 40%, var(--line)); background: color-mix(in srgb, var(--wine) 7%, var(--surface)); }
 .pitem.prep[aria-current="true"] { border-color: var(--wine); box-shadow: inset 4px 0 0 var(--wine); }
 .ficha-acc { display: flex; flex-wrap: wrap; gap: 4px; margin-left: auto; }

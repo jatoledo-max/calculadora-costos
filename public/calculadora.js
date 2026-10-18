@@ -63,6 +63,10 @@ export function iniciarCalculadora(s) {
   function prodsOrdenados() {
     return Object.entries(state.productos).sort((a, b) => (a[1].nombre || "").localeCompare(b[1].nombre || "", "es"));
   }
+  const CLAVE_CERRADAS = "costos-cats-cerradas";
+  const cerradas = new Set();
+  try { JSON.parse(localStorage.getItem(CLAVE_CERRADAS) || "[]").forEach((c) => cerradas.add(c)); } catch (e) {}
+  const guardarCerradas = () => { try { localStorage.setItem(CLAVE_CERRADAS, JSON.stringify([...cerradas])); } catch (e) {} };
   function renderLista() {
     const el = $("#plist");
     el.textContent = "";
@@ -78,10 +82,22 @@ export function iniciarCalculadora(s) {
     const conTitulos = cats.length > 1;
     const orden = cats.flatMap((c) => ventas.filter(([, p]) => categoriaDe(p) === c));
     if (!state.sel || !state.productos[state.sel]) state.sel = (orden[0] || prods[0])[0];
+    // Cada título abre y cierra su grupo; los grupos cerrados se recuerdan en este dispositivo.
     const titulo = (txt, cls) => {
-      const h = document.createElement("div");
+      const h = document.createElement("button");
+      h.type = "button";
       h.className = cls;
-      h.textContent = txt;
+      const abierto = !cerradas.has(txt);
+      h.setAttribute("aria-expanded", String(abierto));
+      const cant = (txt === "Preparaciones propias" ? preps : ventas.filter(([, p]) => categoriaDe(p) === txt)).length;
+      h.innerHTML = '<span class="grp-n"></span><span class="grp-c"></span><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      h.querySelector(".grp-n").textContent = txt;
+      h.querySelector(".grp-c").textContent = cant;
+      h.onclick = () => {
+        if (abierto) cerradas.add(txt); else cerradas.delete(txt);
+        guardarCerradas();
+        renderLista();
+      };
       el.appendChild(h);
     };
     const dl = $("#newprod-cats");
@@ -93,7 +109,8 @@ export function iniciarCalculadora(s) {
     let catActual = null;
     orden.concat(preps).forEach(([id, p], n) => {
       if (n < orden.length && conTitulos && categoriaDe(p) !== catActual) titulo((catActual = categoriaDe(p)), "grp");
-      if (n === orden.length && preps.length) titulo("Preparaciones propias", "grp prep");
+      if (n === orden.length && preps.length) titulo((catActual = "Preparaciones propias"), "grp prep");
+      if ((conTitulos || n >= orden.length) && cerradas.has(catActual)) return;
       const { total: tIns, faltas: fl } = costoProducto(p);
       const total = p.esPreparacion ? tIns : tIns + fijoPorUnidad() * unidadesDe(p);
       const pv = Number(p.precioVenta) || 0;
@@ -479,6 +496,9 @@ export function iniciarCalculadora(s) {
       : { nombre: n, items: [], margen: margenDefault(), precioVenta: null };
     const cat = $("#newprod-cat").value.trim();
     if (cat && !state.productos[id].esPreparacion) state.productos[id].categoria = cat;
+    // Que el producto nuevo se vea aunque su grupo estuviera cerrado
+    cerradas.delete(state.productos[id].esPreparacion ? "Preparaciones propias" : categoriaDe(state.productos[id]));
+    guardarCerradas();
     state.sel = id;
     $("#newprod-name").value = "";
     $("#newprod-cat").value = "";

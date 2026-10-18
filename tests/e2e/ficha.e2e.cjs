@@ -8,7 +8,7 @@ const datos = require("./datos-demo.cjs");
   const b = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {});
   const ctx = await b.newContext({ serviceWorkers: "block", viewport: { width: 1280, height: 900 } });
   await ctx.route("**/config.js", (r) => r.fulfill({ contentType: "text/javascript", body: 'export const CONFIG = { SUPABASE_URL: "", SUPABASE_ANON_KEY: "" };' }));
-  await ctx.addInitScript((d) => { localStorage.clear(); localStorage.setItem("costos-demo-v1", JSON.stringify(d)); localStorage.setItem("costos-tab", "productos"); }, datos);
+  await ctx.addInitScript((d) => { if (sessionStorage.getItem("sembrado")) return; sessionStorage.setItem("sembrado", "1"); localStorage.clear(); localStorage.setItem("costos-demo-v1", JSON.stringify(d)); localStorage.setItem("costos-tab", "productos"); }, datos);
   const p = await ctx.newPage();
   const errores = [];
   p.on("pageerror", (e) => errores.push(String(e)));
@@ -46,7 +46,7 @@ const datos = require("./datos-demo.cjs");
   assert.equal((await guardado("p2")).enCaja, false);
 
   // Lista agrupada por categoría: Hamburguesas, Lomitos, después Promos/Extras/Otros y al final las preparaciones.
-  const lista = () => p.$$eval("#plist > *", (els) => els.map((e) => (e.classList.contains("grp") ? "# " + e.textContent : e.querySelector(".nm").textContent.replace(/ (ejemplo|costo incompleto)/g, "").trim())));
+  const lista = () => p.$$eval("#plist > *", (els) => els.map((e) => (e.classList.contains("grp") ? "# " + e.querySelector(".grp-n").textContent : e.querySelector(".nm").textContent.replace(/ (ejemplo|costo incompleto)/g, "").trim())));
   let l = await lista();
   const titulos = l.filter((x) => x.startsWith("# "));
   assert.deepEqual(titulos.slice(0, 2), ["# Hamburguesas", "# Lomitos"]);
@@ -73,6 +73,26 @@ const datos = require("./datos-demo.cjs");
   await p.locator("#f-cat").blur();
   l = await lista();
   assert.equal(l[l.indexOf("# Papas") + 1], "Papas cheddar");
+  // Cada categoría se despliega: al cerrar Lomitos se ocultan sus productos, el resto sigue, y queda recordado al recargar.
+  const tLomitos = p.locator("button.grp", { hasText: "Lomitos" });
+  assert.equal(await tLomitos.getAttribute("aria-expanded"), "true");
+  assert.equal(await tLomitos.locator(".grp-c").textContent(), "2");
+  await tLomitos.click();
+  l = await lista();
+  assert.ok(!l.includes("Lomito completo") && l.includes("# Lomitos") && l.includes("Hamburguesa completa"), l.join(" | "));
+  assert.equal(await p.locator("button.grp", { hasText: "Lomitos" }).getAttribute("aria-expanded"), "false");
+  await p.locator("button.grp", { hasText: "Preparaciones propias" }).click();
+  assert.ok(!(await lista()).includes("Mayonesa casera"));
+  await p.reload();
+  l = await lista();
+  assert.ok(!l.includes("Lomito completo") && !l.includes("Mayonesa casera"), "no recordó los grupos cerrados");
+  // Un producto nuevo en un grupo cerrado lo abre.
+  await p.fill("#newprod-name", "Lomito mixto");
+  await p.fill("#newprod-cat", "Lomitos");
+  await p.click("#newprod button[type=submit]");
+  l = await lista();
+  assert.ok(l.includes("Lomito mixto") && l.includes("Lomito completo"), l.join(" | "));
+  await p.locator("button.grp", { hasText: "Lomitos" }).click();
   await p.screenshot({ path: process.env.CAPTURA || "/tmp/lista-categorias.png", fullPage: false });
 
   assert.deepEqual(errores, []);
