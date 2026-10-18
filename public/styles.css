@@ -450,3 +450,12 @@ details.cuentas { display: grid; gap: 10px; min-width: 0; }
 details.cuentas > summary { cursor: pointer; font-weight: 700; min-height: 44px; display: flex; align-items: center; color: var(--accent-text); list-style: revert; }
 details.cuentas[open] > summary { margin-bottom: 6px; }
 details.cuentas > * + * { margin-top: 8px; }
+/* Mi negocio: copia de seguridad */
+.card.copia { display: grid; gap: 10px; }
+.card.copia h3 { margin: 6px 0 0; }
+.card.copia .hint { margin: 0; }
+.card.copia .btn { min-height: 44px; justify-self: start; }
+.card.copia input[type="file"] { min-height: 44px; }
+.copia-previa { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); }
+.copia-acc { display: flex; flex-wrap: wrap; gap: 8px; }
+.copia-nombre { display: block; font-size: 0.8rem; color: var(--muted); overflow-wrap: anywhere; }

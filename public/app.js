@@ -3,6 +3,7 @@ import { iniciarCalculadora } from "./calculadora.js";
 import { localStore, supabaseStore, localCaja, supabaseCaja } from "./stores.js";
 import { iniciarCaja } from "./caja.js";
 import { iniciarInformes } from "./informes.js";
+import { iniciarCopias } from "./copia.js";
 
 const $ = (s) => document.querySelector(s);
 const PANTALLAS = ["cargando", "login", "alta", "pago", "app"];
@@ -86,6 +87,7 @@ function arrancarDemo() {
   const calc = iniciarCalculadora(localStore());
   const caja = localCaja(calc.estado);
   iniciarInformes(calc, caja, iniciarCaja(calc, caja));
+  iniciarCopias(caja, () => neg.nombre);
 }
 
 // ---------- Modo real (Supabase) ----------
@@ -176,6 +178,7 @@ async function arrancar() {
     const calc = iniciarCalculadora(supabaseStore(supabase, neg.id));
     const caja = supabaseCaja(supabase);
     iniciarInformes(calc, caja, iniciarCaja(calc, caja));
+    iniciarCopias(caja, () => neg.nombre);
   }
 
   // Pantalla de pago: al vencer la prueba, o desde la app si el negocio quiere suscribirse antes.

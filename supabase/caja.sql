@@ -678,6 +678,119 @@ begin
   return r || jsonb_build_object('ya_estaba', false);
 end $$;
 
+-- ---------- Fase 7: copias de seguridad ----------
+-- copia_negocio() devuelve todo lo del negocio en un solo JSON: catálogo (insumos, productos, gastos, ajustes)
+-- y caja (cajas, ventas con renglones y pagos, movimientos, auditoría). La app lo descarga como archivo.
+-- restaurar_copia(copia) vuelve a cargar ese archivo, sin pisar nada:
+-- * del catálogo agrega solo lo que falta (un producto que ya existe queda como está);
+-- * la caja solo se restaura si el negocio todavía no tiene ninguna caja (cuenta nueva o base vacía),
+--   así una copia no puede mezclarse con ventas reales ni cambiar el pasado. Queda registrado en la auditoría.
+create or replace function public.copia_negocio()
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare
+  neg uuid := public.caja_mi_negocio();
+  n public.negocios;
+begin
+  select * into n from public.negocios where id = neg;
+  return jsonb_build_object(
+    'formato', 'calculadora-copia', 'version', 1, 'creada_en', now(),
+    'negocio', jsonb_build_object('nombre', n.nombre, 'color', n.color, 'logo', n.logo),
+    'insumos', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'datos', datos) order by id) from public.insumos where negocio_id = neg), '[]'::jsonb),
+    'productos', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'datos', datos) order by id) from public.productos where negocio_id = neg), '[]'::jsonb),
+    'gastos', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'datos', datos) order by id) from public.gastos where negocio_id = neg), '[]'::jsonb),
+    'ajustes', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'datos', datos) order by id) from public.ajustes where negocio_id = neg), '[]'::jsonb),
+    'cajas', coalesce((select jsonb_agg(to_jsonb(c) - 'negocio_id' order by c.numero) from public.cajas c where c.negocio_id = neg), '[]'::jsonb),
+    'ventas', coalesce((select jsonb_agg(to_jsonb(v) - 'negocio_id' order by v.creada_en, v.id) from public.ventas v where v.negocio_id = neg), '[]'::jsonb),
+    'venta_items', coalesce((select jsonb_agg(to_jsonb(i) order by i.venta_id, i.renglon)
+      from public.venta_items i join public.ventas v on v.id = i.venta_id where v.negocio_id = neg), '[]'::jsonb),
+    'venta_pagos', coalesce((select jsonb_agg(to_jsonb(p) order by p.venta_id, p.medio)
+      from public.venta_pagos p join public.ventas v on v.id = p.venta_id where v.negocio_id = neg), '[]'::jsonb),
+    'movimientos', coalesce((select jsonb_agg(to_jsonb(m) - 'negocio_id' order by m.creado_en, m.id) from public.movimientos m where m.negocio_id = neg), '[]'::jsonb),
+    'auditoria', coalesce((select jsonb_agg(to_jsonb(a) - 'negocio_id' - 'id' order by a.id) from public.auditoria a where a.negocio_id = neg), '[]'::jsonb));
+end $$;
+
+create or replace function public.restaurar_copia(p jsonb)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  neg uuid := public.caja_mi_negocio();
+  r jsonb := '{}'::jsonb;
+  k text;
+  n int;
+  lista jsonb;
+begin
+  if jsonb_typeof(p) is distinct from 'object' or p->>'formato' is distinct from 'calculadora-copia' then
+    raise exception 'El archivo no es una copia de seguridad de la app.';
+  end if;
+  if p->>'version' is distinct from '1' then raise exception 'Esta copia es de otra versión de la app: no se puede restaurar acá.'; end if;
+  -- Un restaurar por vez en cada negocio.
+  perform pg_advisory_xact_lock(hashtext('restaurar_copia:' || neg::text));
+
+  -- Catálogo: solo lo que falta.
+  foreach k in array array['insumos', 'productos', 'gastos', 'ajustes'] loop
+    lista := case when jsonb_typeof(p->k) = 'array' then p->k else '[]'::jsonb end;
+    execute format('insert into public.%I (negocio_id, id, datos)
+      select $1, x->>''id'', x->''datos'' from jsonb_array_elements($2) x
+      where coalesce(x->>''id'', '''') <> '''' and jsonb_typeof(x->''datos'') = ''object''
+      on conflict do nothing', k) using neg, lista;
+    get diagnostics n = row_count;
+    r := r || jsonb_build_object(k, n);
+  end loop;
+
+  -- Caja: solo en un negocio sin cajas. Cada venta y movimiento tiene que ser de una caja restaurada acá.
+  if exists (select 1 from public.cajas where negocio_id = neg) then
+    r := r || jsonb_build_object('caja_ya_tenia', true, 'cajas', 0, 'ventas', 0, 'movimientos', 0);
+  else
+    insert into public.cajas
+    select (jsonb_populate_record(null::public.cajas, x || jsonb_build_object('negocio_id', neg))).*
+    from jsonb_array_elements(case when jsonb_typeof(p->'cajas') = 'array' then p->'cajas' else '[]'::jsonb end) x
+    on conflict do nothing;
+    get diagnostics n = row_count;
+    r := r || jsonb_build_object('caja_ya_tenia', false, 'cajas', n);
+
+    insert into public.ventas
+    select (s.v).* from (
+      select jsonb_populate_record(null::public.ventas, x || jsonb_build_object('negocio_id', neg)) as v
+      from jsonb_array_elements(case when jsonb_typeof(p->'ventas') = 'array' then p->'ventas' else '[]'::jsonb end) x) s
+    where exists (select 1 from public.cajas c where c.id = (s.v).caja_id and c.negocio_id = neg)
+      and ((s.v).anulada_en_caja is null or exists (select 1 from public.cajas c where c.id = (s.v).anulada_en_caja and c.negocio_id = neg))
+    on conflict do nothing;
+    get diagnostics n = row_count;
+    r := r || jsonb_build_object('ventas', n);
+
+    insert into public.venta_items
+    select (s.i).* from (
+      select jsonb_populate_record(null::public.venta_items, x) as i
+      from jsonb_array_elements(case when jsonb_typeof(p->'venta_items') = 'array' then p->'venta_items' else '[]'::jsonb end) x) s
+    where exists (select 1 from public.ventas v where v.id = (s.i).venta_id and v.negocio_id = neg)
+    on conflict do nothing;
+
+    insert into public.venta_pagos
+    select (s.q).* from (
+      select jsonb_populate_record(null::public.venta_pagos, x) as q
+      from jsonb_array_elements(case when jsonb_typeof(p->'venta_pagos') = 'array' then p->'venta_pagos' else '[]'::jsonb end) x) s
+    where exists (select 1 from public.ventas v where v.id = (s.q).venta_id and v.negocio_id = neg)
+    on conflict do nothing;
+
+    insert into public.movimientos
+    select (s.m).* from (
+      select jsonb_populate_record(null::public.movimientos, x || jsonb_build_object('negocio_id', neg)) as m
+      from jsonb_array_elements(case when jsonb_typeof(p->'movimientos') = 'array' then p->'movimientos' else '[]'::jsonb end) x) s
+    where exists (select 1 from public.cajas c where c.id = (s.m).caja_id and c.negocio_id = neg)
+    on conflict do nothing;
+    get diagnostics n = row_count;
+    r := r || jsonb_build_object('movimientos', n);
+
+    insert into public.auditoria (negocio_id, creado_en, usuario, accion, detalle)
+    select neg, (x->>'creado_en')::timestamptz, (x->>'usuario')::uuid, x->>'accion', x->'detalle'
+    from jsonb_array_elements(case when jsonb_typeof(p->'auditoria') = 'array' then p->'auditoria' else '[]'::jsonb end) x
+    where coalesce(x->>'accion', '') <> '' and (r->>'cajas')::int > 0;
+  end if;
+
+  insert into public.auditoria (negocio_id, accion, detalle)
+  values (neg, 'restaurar_copia', r || jsonb_build_object('copia_creada_en', p->'creada_en'));
+  return r;
+end $$;
+
 -- ---------- Quién puede llamar a cada función ----------
 revoke all on function public.caja_pesos(numeric) from public, anon;
 revoke all on function public.caja_informe(public.cajas) from public, anon, authenticated;
@@ -698,3 +811,7 @@ grant execute on function public.registrar_movimiento(uuid, text, text, numeric,
 grant execute on function public.anular_movimiento(uuid, text) to authenticated;
 grant execute on function public.anular_venta(uuid, text) to authenticated;
 grant execute on function public.cerrar_caja(uuid, numeric, numeric, numeric, text) to authenticated;
+revoke all on function public.copia_negocio() from public, anon;
+revoke all on function public.restaurar_copia(jsonb) from public, anon;
+grant execute on function public.copia_negocio() to authenticated;
+grant execute on function public.restaurar_copia(jsonb) to authenticated;

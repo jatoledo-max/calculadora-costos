@@ -14,6 +14,7 @@ Tiene 14 días de prueba gratis y después se cobra una suscripción mensual con
   - `informe.js`: cómo se dibuja un informe de caja (el de la caja abierta, el de un cierre o la suma de varios días).
   - `informes.js`: pestaña Informes. Cierres por fechas (hoy, últimos 7 días, este mes, mes pasado o a mano), la suma del
     período, el informe de cada cierre con sus ventas (para anular una venta de otro día), planillas .csv y pagos pendientes.
+  - `copia.js`: Mi negocio > Copia de seguridad. Descarga todo el negocio en un archivo .json y lo vuelve a cargar.
   - `dinero.js`: redondeo a centavos y formato en pesos.
   - `app.js`: ingreso, alta del negocio, marca propia y bloqueo cuando no hay suscripción.
   - `config.js`: URL y clave pública de Supabase. Si quedan vacías, la app abre en **modo demo** (datos en el navegador).
@@ -25,6 +26,8 @@ Tiene 14 días de prueba gratis y después se cobra una suscripción mensual con
   `anular_venta`, `anular_movimiento` y `cerrar_caja`, que validan todo en una transacción. `resumen_caja` devuelve el informe
   (en vivo si la caja está abierta; la foto guardada al cerrar si está cerrada). Los pagos pendientes se guardan en
   `ajustes` (id `obligaciones`) y el cierre los resta del disponible para retirar.
+  `copia_negocio` arma la copia de seguridad y `restaurar_copia` la vuelve a cargar sin pisar nada: del catálogo agrega
+  lo que falta y la caja solo la restaura si el negocio todavía no tiene cajas (queda registrado en la auditoría).
 - `supabase/schema.sql`: tablas y reglas de seguridad. Cada negocio solo puede leer y escribir lo suyo, y solo con prueba vigente o suscripción activa.
 - `netlify/functions/crear-suscripcion.mjs`: crea la suscripción mensual en Mercado Pago y devuelve el link de pago.
 - `netlify/functions/mp-webhook.mjs`: recibe los avisos de Mercado Pago y activa o bloquea el negocio.
@@ -58,6 +61,8 @@ Con `config.js` vacío arranca en modo demo.
 
 ## Pruebas
 
+`npm run test:todo` (`tests/todas.sh`) corre todo lo de abajo de una vez y dice qué falló.
+
 - `npm test`: cálculos de costos y de plata (Node 22, sin instalar nada).
 - `npm run test:db`: carga `schema.sql` y `caja.sql` en un Postgres de prueba y comprueba las reglas de la caja
   (sin duplicados, precios del catálogo, pagos que suman el total, gastos y retiros, anulaciones, cierre con la noche de
@@ -66,5 +71,7 @@ Con `config.js` vacío arranca en modo demo.
 - `tests/e2e/`: recorren la caja y la ficha de producto en un navegador, en modo demo.
   Con `public/` servido en el puerto 8765: `node tests/e2e/caja.e2e.cjs`, `node tests/e2e/cierre.e2e.cjs`, `node tests/e2e/informes.e2e.cjs`
   y `node tests/e2e/ficha.e2e.cjs` (necesitan Playwright).
+  `node tests/e2e/integral.e2e.cjs` recorre dos noches completas, informes, copia de seguridad, un celular nuevo sin datos
+  y la restauración de la copia.
   `node tests/e2e/celular.e2e.cjs` levanta su propio servidor (puerto 8766) y prueba que sea instalable, que abra sin internet,
   el carrito guardado y que todo lo tocable mida al menos 44 px.

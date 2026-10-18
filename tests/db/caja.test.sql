@@ -401,3 +401,93 @@ end $$;
 -- Nadie llama directo al cálculo interno.
 select pg_temp.espera_error($q$select public.caja_informe(c) from public.cajas c$q$, 'permission denied');
 reset role;
+
+-- =====================================================================
+-- Fase 7: copia de seguridad y restauración.
+-- D descarga su copia, se pierde todo lo de D en la base y D la restaura: tiene que quedar exactamente igual.
+-- =====================================================================
+create temp table copia_d (c jsonb);
+grant all on copia_d to authenticated;
+set role authenticated;
+select set_config('request.jwt.claim.sub', 'dddddddd-0000-0000-0000-000000000004', false);
+insert into copia_d select public.copia_negocio();
+do $$
+declare c jsonb := (select c from copia_d);
+begin
+  if c->>'formato' <> 'calculadora-copia' or jsonb_array_length(c->'cajas') <> 2 or jsonb_array_length(c->'ventas') <> 4
+     or jsonb_array_length(c->'productos') <> 3 or jsonb_array_length(c->'venta_items') = 0 or jsonb_array_length(c->'movimientos') = 0 then
+    raise exception 'copia incompleta: % cajas, % ventas', jsonb_array_length(c->'cajas'), jsonb_array_length(c->'ventas');
+  end if;
+  if c ? 'negocio_id' or (c->'cajas'->0) ? 'negocio_id' then raise exception 'la copia no debería llevar el id del negocio'; end if;
+end $$;
+-- Con datos en la caja, restaurar no toca nada (no se puede mezclar una copia con ventas reales).
+do $$
+declare r jsonb := public.restaurar_copia((select c from copia_d));
+begin
+  if not (r->>'caja_ya_tenia')::boolean or (r->>'ventas')::int <> 0 or (r->>'productos')::int <> 0 then raise exception 'restaurar encima: %', r; end if;
+end $$;
+select pg_temp.espera_error($q$select public.restaurar_copia('{"formato":"otro"}')$q$, 'no es una copia de seguridad');
+select pg_temp.espera_error($q$select public.restaurar_copia('{"formato":"calculadora-copia","version":2}')$q$, 'otra versión');
+-- Un archivo que no es una copia no deja nada a medias.
+select pg_temp.espera_error($q$select public.restaurar_copia('[1,2]')$q$, 'no es una copia de seguridad');
+
+-- Se pierde todo lo de D.
+reset role;
+delete from public.venta_pagos p using public.ventas v where v.id = p.venta_id and v.negocio_id = 'd0000000-0000-0000-0000-00000000000d';
+delete from public.venta_items i using public.ventas v where v.id = i.venta_id and v.negocio_id = 'd0000000-0000-0000-0000-00000000000d';
+delete from public.movimientos where negocio_id = 'd0000000-0000-0000-0000-00000000000d';
+update public.ventas set anulada_en_caja = null where negocio_id = 'd0000000-0000-0000-0000-00000000000d';
+delete from public.ventas where negocio_id = 'd0000000-0000-0000-0000-00000000000d';
+delete from public.cajas where negocio_id = 'd0000000-0000-0000-0000-00000000000d';
+delete from public.auditoria where negocio_id = 'd0000000-0000-0000-0000-00000000000d';
+delete from public.productos where negocio_id = 'd0000000-0000-0000-0000-00000000000d';
+delete from public.gastos where negocio_id = 'd0000000-0000-0000-0000-00000000000d';
+delete from public.ajustes where negocio_id = 'd0000000-0000-0000-0000-00000000000d' and id = 'general';
+
+set role authenticated;
+select set_config('request.jwt.claim.sub', 'dddddddd-0000-0000-0000-000000000004', false);
+do $$
+declare
+  antes jsonb := (select c from copia_d);
+  r jsonb := public.restaurar_copia(antes);
+  despues jsonb := public.copia_negocio();
+  aud jsonb;
+begin
+  -- El ajuste "delivery" no se había borrado: queda el que había, no se duplica.
+  if (r->>'cajas')::int <> 2 or (r->>'ventas')::int <> 4 or (r->>'productos')::int <> 3 or (r->>'ajustes')::int <> 1 or (r->>'gastos')::int <> 1 then
+    raise exception 'restaurar: %', r;
+  end if;
+  if (despues - 'creada_en' - 'auditoria') <> (antes - 'creada_en' - 'auditoria') then raise exception 'lo restaurado no es igual a la copia'; end if;
+  aud := despues->'auditoria';
+  if jsonb_array_length(aud) <> jsonb_array_length(antes->'auditoria') + 1 or aud->-1->>'accion' <> 'restaurar_copia'
+     or (aud - (jsonb_array_length(aud) - 1)) <> antes->'auditoria' then
+    raise exception 'auditoría restaurada: %', aud->-1;
+  end if;
+  -- Los informes guardados vuelven iguales y la caja sigue funcionando: la próxima es la Caja 3.
+  if (public.resumen_caja('d1000000-0000-0000-0000-000000000001')->>'disponible_estimado')::numeric <> 7300 then raise exception 'informe restaurado'; end if;
+  if (public.abrir_caja('d1000000-0000-0000-0000-000000000003', 15000)->>'numero')::int <> 3 then raise exception 'numeración después de restaurar'; end if;
+  -- Restaurar otra vez no duplica nada.
+  r := public.restaurar_copia(antes);
+  if not (r->>'caja_ya_tenia')::boolean or (r->>'productos')::int <> 0 or (r->>'insumos')::int <> 0 then raise exception 'restaurar dos veces: %', r; end if;
+end $$;
+
+-- Otro negocio (B) intenta cargar la copia de D: recibe el catálogo, pero ninguna venta ni caja de D (son de otro negocio),
+-- y lo de D no cambia.
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-0000-0000-000000000002', false);
+do $$
+declare r jsonb := public.restaurar_copia((select c from copia_d));
+begin
+  if (r->>'cajas')::int <> 0 or (r->>'ventas')::int <> 0 or (r->>'movimientos')::int <> 0 then raise exception 'B restauró cajas de D: %', r; end if;
+  if exists (select 1 from public.ventas) then raise exception 'B ve ventas de D'; end if;
+end $$;
+-- Un negocio vencido no puede descargar ni restaurar.
+select set_config('request.jwt.claim.sub', 'cccccccc-0000-0000-0000-000000000003', false);
+select pg_temp.espera_error($q$select public.copia_negocio()$q$, 'no tiene acceso');
+select pg_temp.espera_error($q$select public.restaurar_copia((select c from copia_d))$q$, 'no tiene acceso');
+reset role;
+set role anon;
+select pg_temp.espera_error($q$select public.copia_negocio()$q$, 'permission denied');
+reset role;
+do $$ begin
+  if (select count(*) from public.ventas where negocio_id = 'd0000000-0000-0000-0000-00000000000d') <> 4 then raise exception 'ventas de D cambiaron'; end if;
+end $$;

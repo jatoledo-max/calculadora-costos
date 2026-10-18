@@ -65,6 +65,9 @@ export function supabaseStore(supabase, negocioId) {
 //   listarCajas(desde, hasta)         → cajas con fecha_operacion entre las dos fechas ("2026-10-01"), la más nueva primero,
 //                                       cada una con su foto del cierre en "resumen"
 //   detalle(cajaIds)                  → { ventas, movimientos } de esas cajas (también las anuladas), con renglones y pagos
+//   copia()                           → copia de seguridad de todo el negocio (catálogo y caja), lista para guardar como archivo
+//   restaurar(copia)                  → { insumos, productos, gastos, ajustes, cajas, ventas, movimientos, caja_ya_tenia }
+//                                       agrega lo que falta del catálogo; la caja solo si no hay ninguna caja todavía
 // "venta" es { id, items: [{ producto, opcion, cantidad, costo_unitario, packaging_unitario, costo_incompleto, faltas }],
 //              pagos: [{ medio, importe }], descuento, motivo, cargoEnvio, conEnvio }.
 
@@ -134,6 +137,8 @@ export function supabaseCaja(supabase) {
       }
       return { ventas, movimientos };
     },
+    copia: () => rpc("copia_negocio", {}),
+    restaurar: (copia) => rpc("restaurar_copia", { p: copia }),
     abrirCaja: (id, saldo) => rpc("abrir_caja", { p_id: id, p_saldo_inicial: saldo }),
     resumen: (cajaId) => rpc("resumen_caja", { p_caja_id: cajaId }),
     confirmarVenta: (v) => rpc("confirmar_venta", {
@@ -349,6 +354,39 @@ export function localCaja(estado) {
         fondo_siguiente: r.fondo_siguiente, observaciones: r.observaciones, resumen: r });
       save();
       return Object.assign({ ya_estaba: false }, r);
+    },
+    // Copia del modo demo: el catálogo con el mismo formato que la de Supabase (se puede restaurar en una cuenta real)
+    // y la caja del navegador aparte, en "demo_caja" (la base la ignora).
+    async copia() {
+      let cat = {};
+      try { cat = JSON.parse(localStorage.getItem("costos-demo-v1")) || {}; } catch (e) {}
+      const lista = (col) => Object.entries(cat[col] || {}).map(([id, datos]) => ({ id, datos })).sort((a, b) => a.id.localeCompare(b.id));
+      return { formato: "calculadora-copia", version: 1, creada_en: new Date().toISOString(), modo: "demo",
+        insumos: lista("insumos"), productos: lista("productos"), gastos: lista("gastos"), ajustes: lista("ajustes"),
+        demo_caja: JSON.parse(JSON.stringify(db)) };
+    },
+    async restaurar(c) {
+      if (!c || typeof c !== "object" || Array.isArray(c) || c.formato !== "calculadora-copia") throw new Error("El archivo no es una copia de seguridad de la app.");
+      if (String(c.version) !== "1") throw new Error("Esta copia es de otra versión de la app: no se puede restaurar acá.");
+      let cat = {};
+      try { cat = JSON.parse(localStorage.getItem("costos-demo-v1")) || {}; } catch (e) {}
+      const r = {};
+      ["insumos", "productos", "gastos", "ajustes"].forEach((col) => {
+        cat[col] = cat[col] || {};
+        r[col] = 0;
+        (Array.isArray(c[col]) ? c[col] : []).forEach((x) => {
+          if (x && x.id && x.datos && typeof x.datos === "object" && !(x.id in cat[col])) { cat[col][x.id] = x.datos; r[col]++; }
+        });
+      });
+      try { localStorage.setItem("costos-demo-v1", JSON.stringify(cat)); } catch (e) {}
+      const dc = c.demo_caja;
+      if (db.cajas.length) Object.assign(r, { caja_ya_tenia: true, cajas: 0, ventas: 0, movimientos: 0 });
+      else if (dc && Array.isArray(dc.cajas)) {
+        db = { cajas: dc.cajas, ventas: dc.ventas || [], movimientos: dc.movimientos || [] };
+        save();
+        Object.assign(r, { caja_ya_tenia: false, cajas: db.cajas.length, ventas: db.ventas.length, movimientos: db.movimientos.length });
+      } else Object.assign(r, { caja_ya_tenia: false, cajas: 0, ventas: 0, movimientos: 0 });
+      return r;
     },
     async listarCajas(desde, hasta) {
       return db.cajas.filter((c) => c.fecha_operacion >= desde && c.fecha_operacion <= hasta).slice().reverse();
