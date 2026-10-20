@@ -4,6 +4,8 @@ import { localStore, supabaseStore, localCaja, supabaseCaja } from "./stores.js"
 import { iniciarCaja } from "./caja.js";
 import { iniciarInformes } from "./informes.js";
 import { iniciarCopias } from "./copia.js";
+import { iniciarMenuNegocio } from "./menu.js";
+import { subirFotoSupabase, subirFotoDemo } from "./fotos.js";
 
 const $ = (s) => document.querySelector(s);
 const PANTALLAS = ["cargando", "login", "alta", "pago", "app"];
@@ -84,10 +86,11 @@ function arrancarDemo() {
   iniciarFormNegocio(neg, async (c) => { try { localStorage.setItem("costos-demo-negocio", JSON.stringify(Object.assign({}, neg, c))); } catch (e) {} });
   $("#btn-salir").hidden = true;
   mostrar("app");
-  const calc = iniciarCalculadora(localStore());
+  const calc = iniciarCalculadora(localStore(), { subirFoto: subirFotoDemo });
   const caja = localCaja(calc.estado);
   iniciarInformes(calc, caja, iniciarCaja(calc, caja));
   iniciarCopias(caja, () => neg.nombre);
+  iniciarMenuNegocio(calc, () => neg.nombre, null);
 }
 
 // ---------- Modo real (Supabase) ----------
@@ -175,10 +178,15 @@ async function arrancar() {
       $("#sub-estado").after(b);
     }
     mostrar("app");
-    const calc = iniciarCalculadora(supabaseStore(supabase, neg.id));
+    const calc = iniciarCalculadora(supabaseStore(supabase, neg.id), { subirFoto: subirFotoSupabase(supabase, neg.id) });
     const caja = supabaseCaja(supabase);
     iniciarInformes(calc, caja, iniciarCaja(calc, caja));
     iniciarCopias(caja, () => neg.nombre);
+    iniciarMenuNegocio(calc, () => neg.nombre, async (slug) => {
+      const { data, error } = await supabase.rpc("menu_publico", { p_slug: slug });
+      if (error) throw new Error(error.message);
+      return data;
+    });
   }
 
   // Pantalla de pago: al vencer la prueba, o desde la app si el negocio quiere suscribirse antes.

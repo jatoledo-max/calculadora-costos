@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Prueba supabase/schema.sql + supabase/caja.sql en una base Postgres de prueba, desde cero.
-# caja.sql se corre dos veces para comprobar que se puede volver a correr sin romper nada.
+# Prueba supabase/schema.sql + supabase/caja.sql + supabase/menu.sql en una base Postgres de prueba, desde cero.
+# caja.sql y menu.sql se corren dos veces para comprobar que se puede volver a correr sin romper nada.
 # Uso: tests/db/correr.sh   (necesita psql y un Postgres; se configura con PGHOST, PGPORT, PGUSER)
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 DB=caja_prueba
 export PGOPTIONS="-c client_min_messages=warning"
 psql -q -d postgres -c "drop database if exists $DB" -c "create database $DB"
-for f in tests/db/supabase-stub.sql supabase/schema.sql supabase/caja.sql supabase/caja.sql tests/db/caja.test.sql; do
+for f in tests/db/supabase-stub.sql supabase/schema.sql supabase/caja.sql supabase/caja.sql supabase/menu.sql supabase/menu.sql tests/db/caja.test.sql tests/db/menu.test.sql; do
   psql -q -X -o /dev/null -v ON_ERROR_STOP=1 -d $DB -f "$f"
 done
 
