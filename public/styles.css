@@ -465,3 +465,19 @@ details.cuentas > * + * { margin-top: 8px; }
 .copia-previa { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); }
 .copia-acc { display: flex; flex-wrap: wrap; gap: 8px; }
 .copia-nombre { display: block; font-size: 0.8rem; color: var(--muted); overflow-wrap: anywhere; }
+
+/* Ficha > En el menú de pedidos y Mi negocio > Menú de pedidos */
+.menu-conf { display: grid; gap: 10px; }
+.menu-conf label.chk, .menu-form label.chk { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.menu-conf label.chk input, .menu-form label.chk input { flex: none; width: 20px; height: 20px; margin: 0.1em 0 0; accent-color: var(--accent); }
+.menu-conf textarea { width: 100%; font: inherit; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); resize: vertical; }
+.menu-foto { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.menu-foto img { width: 96px; height: 72px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); }
+.tag.menu { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); color: var(--ink); }
+.mn-grupo { border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px 12px; display: grid; gap: 8px; }
+.mn-grupo legend { padding: 0 4px; font-size: 0.85rem; color: var(--muted); }
+.mn-dias { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.mn-horas { display: flex; gap: 12px; flex-wrap: wrap; }
+.mn-lista { list-style: none; margin: 6px 0 12px; padding: 0; display: grid; gap: 4px; }
+.mn-lista li { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 0.92rem; }
+.mn-json { max-height: 320px; overflow: auto; font-size: 0.75rem; background: var(--surface); border-radius: 10px; padding: 10px; white-space: pre-wrap; word-break: break-word; }

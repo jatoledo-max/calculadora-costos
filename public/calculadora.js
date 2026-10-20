@@ -1,9 +1,11 @@
 import { crearCostos, UNID, categoriaDe, ordenarCategorias } from "./costos.js";
+import { pluralSugerido, conCantidad } from "./plural.js";
 
 // Lógica de la calculadora: insumos (con rendimiento y merma), productos, preparaciones, packaging,
 // gastos fijos, delivery y precio sugerido.
-// Recibe un "store" con subscribe(col, cb), set(col, id, body) y del(col, id).
-export function iniciarCalculadora(s) {
+// Recibe un "store" con subscribe(col, cb), set(col, id, body) y del(col, id),
+// y opcionalmente subirFoto(archivo, idProducto) → URL pública de la foto para el menú de pedidos.
+export function iniciarCalculadora(s, { subirFoto } = {}) {
   const $ = (s) => document.querySelector(s);
   const fmt = (n) => "$ " + Math.round(n || 0).toLocaleString("es-AR");
   const fmt2 = (n) => "$ " + (n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -122,6 +124,7 @@ export function iniciarCalculadora(s) {
       b.innerHTML = '<span class="nm"></span><span class="det"></span>';
       b.querySelector(".nm").textContent = p.nombre || "(sin nombre)";
       if (p.ejemplo) b.querySelector(".nm").insertAdjacentHTML("beforeend", ' <span class="tag ej">ejemplo</span>');
+      if (p.enMenu && !p.esPreparacion) b.querySelector(".nm").insertAdjacentHTML("beforeend", p.agotado ? ' <span class="tag falta">agotado</span>' : ' <span class="tag menu">en el menú</span>');
       if (fl.length) b.querySelector(".nm").insertAdjacentHTML("beforeend", ' <span class="tag falta">costo incompleto</span>');
       const det = b.querySelector(".det");
       const fila = (k, v) => '<span class="fila"><span class="k">' + k + '</span><span class="num">' + v + "</span></span>";
@@ -220,6 +223,21 @@ export function iniciarCalculadora(s) {
           <label class="f">Precio extra ($)<input id="f-op-precio" class="n" type="number" min="0" step="any" value="0"></label>
           <button class="btn" type="submit">Agregar opción</button>
         </form>
+      </div>
+      <div class="ficha sec menu-conf" id="f-menu" ${p.esPreparacion ? "hidden" : ""}>
+        <h2 class="sec-t">En el menú de pedidos</h2>
+        <p class="hint">Lo que marques acá lo ven tus clientes en el menú online, con el precio de esta ficha. Nunca ven costos ni márgenes.</p>
+        <label class="chk"><input type="checkbox" id="f-enmenu"> <span>Mostrar en el menú</span></label>
+        <label class="chk"><input type="checkbox" id="f-agotado"> <span>Agotado por ahora (se ve, pero no se puede pedir)</span></label>
+        <label class="f">Descripción corta<textarea id="f-desc" rows="2" maxlength="160" placeholder="Ej: Con lechuga, tomate, huevo, jamón y queso."></textarea></label>
+        <label class="f">Nombre en plural (para "2 …")<input id="f-plural" maxlength="80"></label>
+        <p class="hint" id="f-plural-ej"></p>
+        <div class="menu-foto">
+          <img id="f-foto-img" alt="" hidden>
+          <label class="f">Foto (JPG o PNG)<input id="f-foto" type="file" accept="image/*"></label>
+          <button class="btn ghost" type="button" id="f-foto-quitar" hidden>Quitar foto</button>
+          <span class="saved" id="f-foto-msg" role="status"></span>
+        </div>
       </div>`;
 
     el.querySelectorAll(".aviso-falta span").forEach((sp, n) => { sp.textContent = faltas[n]; });
@@ -306,7 +324,36 @@ export function iniciarCalculadora(s) {
     pvi.onchange = () => saveProd(id, { precioVenta: Number(pvi.value) || null });
     const evi = $("#f-envio"); evi.value = env || "";
     evi.onchange = () => saveProd(id, { envioIncluido: Number(evi.value) || 0 });
-    if (!p.esPreparacion) renderEnCaja(id, p);
+    if (!p.esPreparacion) { renderEnCaja(id, p); renderEnMenu(id, p); }
+  }
+
+  // ---------- Ficha: cómo aparece en el menú de pedidos ----------
+  function renderEnMenu(id, p) {
+    const chk = (sel, campo, def) => { const c = $(sel); c.checked = def ? p[campo] !== false : !!p[campo]; c.onchange = () => saveProd(id, { [campo]: c.checked }); };
+    chk("#f-enmenu", "enMenu"); chk("#f-agotado", "agotado");
+    const desc = $("#f-desc"); desc.value = p.descripcion || "";
+    desc.onchange = () => saveProd(id, { descripcion: desc.value.trim() });
+    const pl = $("#f-plural"); pl.value = p.plural || "";
+    pl.placeholder = pluralSugerido(p.nombre);
+    const ej = () => { $("#f-plural-ej").textContent = "En el pedido se lee: " + conCantidad(1, p.nombre) + " · " + conCantidad(2, p.nombre, pl.value); };
+    ej();
+    pl.oninput = ej;
+    pl.onchange = () => saveProd(id, { plural: pl.value.trim() });
+    const img = $("#f-foto-img"), quitar = $("#f-foto-quitar"), msg = $("#f-foto-msg");
+    if (p.foto) { img.src = p.foto; img.alt = "Foto de " + (p.nombre || "producto"); img.hidden = false; quitar.hidden = false; }
+    quitar.onclick = () => saveProd(id, { foto: "" });
+    $("#f-foto").onchange = async (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      if (!subirFoto) { msg.textContent = "No se pueden subir fotos acá."; return; }
+      msg.textContent = "Subiendo foto…";
+      try {
+        const url = await subirFoto(f, id);
+        saveProd(id, { foto: url });
+      } catch (err) {
+        msg.textContent = err.message || "No se pudo subir la foto.";
+      }
+    };
   }
 
   // ---------- Ficha: cómo aparece en la caja y sus opciones ----------

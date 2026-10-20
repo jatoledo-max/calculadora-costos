@@ -1,5 +1,5 @@
 // Dónde se guardan los datos de la calculadora.
-// Las dos variantes tienen la misma forma: subscribe(col, cb), set(col, id, body), del(col, id).
+// Las dos variantes tienen la misma forma: subscribe(col, cb), set(col, id, body) → true si se guardó, del(col, id).
 // col es "insumos", "productos", "gastos" o "ajustes"; body es el objeto tal cual lo usa la calculadora.
 
 export function localStore() {
@@ -12,7 +12,7 @@ export function localStore() {
   return {
     mode: "local",
     subscribe(col, cb) { data[col] = data[col] || {}; subs[col] = cb; emit(col); },
-    async set(col, id, body) { data[col][id] = body; save(); emit(col); },
+    async set(col, id, body) { data[col][id] = body; save(); emit(col); return true; },
     async del(col, id) { delete data[col][id]; save(); emit(col); },
   };
 }
@@ -41,6 +41,7 @@ export function supabaseStore(supabase, negocioId) {
       const { error } = await supabase.from(col).upsert({ negocio_id: negocioId, id, datos: body });
       if (error) store.onError("No se pudo guardar. Revisá tu conexión y probá de nuevo.");
       else store.onSaved();
+      return !error;
     },
     async del(col, id) {
       if (cache[col]) delete cache[col][id];
