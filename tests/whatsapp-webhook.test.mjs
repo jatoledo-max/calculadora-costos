@@ -6,6 +6,7 @@ import crypto from "node:crypto";
 Object.assign(process.env, {
   WA_APP_SECRET: "secreto", WA_TOKEN: "tok", WA_PHONE_NUMBER_ID: "123", WA_VERIFY_TOKEN: "palabra", WA_SLUG: "venutto",
   GEMINI_API_KEY: "g", SUPABASE_URL: "https://db.test", SUPABASE_SERVICE_ROLE_KEY: "srk", URL: "https://sitio.test", WA_ESPERA_MS: "5",
+  GEMINI_ESPERAS_MS: "1,1",
 });
 const { default: procesar } = await import("../netlify/functions/whatsapp-procesar-background.mjs");
 const { default: webhook } = await import("../netlify/functions/whatsapp.mjs");
@@ -111,6 +112,32 @@ test("si la IA falla, pide disculpas y le pasa la charla al dueño", async () =>
   await llamar(aviso([texto("m7", "hola")]));
   assert.match(s.enviados[0].text.body, /Perdón/);
   assert.ok(s.parches.some((p) => p.body.necesita_humano));
+});
+
+test("si Google está saturado, reintenta y después prueba con el modelo liviano", async () => {
+  const s = simular();
+  const original = globalThis.fetch;
+  const modelos = [];
+  globalThis.fetch = (u, i) => {
+    const url = String(u);
+    if (!url.includes("generativelanguage")) return original(u, i);
+    modelos.push(url.split("/models/")[1].split(":")[0]);
+    if (modelos.length <= 3) return Promise.resolve(respuesta(503, { error: { code: 503, message: "high demand" } }));
+    return Promise.resolve(respuesta(200, { candidates: [{ content: { role: "model", parts: [{ text: "¡Hola! Sí, tenemos." }] } }] }));
+  };
+  await llamar(aviso([texto("m8", "venden sanguchitos de miga?")]));
+  assert.deepEqual(modelos, ["gemini-flash-latest", "gemini-flash-latest", "gemini-flash-latest", "gemini-flash-lite-latest"]);
+  assert.equal(s.enviados[0].text.body, "¡Hola! Sí, tenemos.");
+});
+
+test("un error que no es pasajero (clave mala) no se reintenta", async () => {
+  const s = simular();
+  const original = globalThis.fetch;
+  let llamadas = 0;
+  globalThis.fetch = (u, i) => (String(u).includes("generativelanguage") ? (llamadas++, Promise.resolve(respuesta(400, { error: "clave" }))) : original(u, i));
+  await llamar(aviso([texto("m9", "hola")]));
+  assert.equal(llamadas, 1);
+  assert.match(s.enviados[0].text.body, /Perdón/);
 });
 
 test("webhook: Meta verifica la URL y los avisos firmados pasan a procesarse", async () => {

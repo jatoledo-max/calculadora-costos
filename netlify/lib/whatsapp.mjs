@@ -51,17 +51,46 @@ export async function bajarMedia(mediaId) {
 }
 
 const modelo = () => process.env.GEMINI_MODEL || "gemini-flash-latest";
+const MODELO_RESPALDO = "gemini-flash-lite-latest";
+// Errores pasajeros de Google ("el modelo está saturado", límite por minuto): se reintenta en vez de fallar.
+const PASAJERO = new Set([429, 500, 502, 503, 504]);
+const ESPERAS_MS = () => (process.env.GEMINI_ESPERAS_MS || "1500,4000").split(",").map(Number);
+const dormir = (ms) => new Promise((res) => setTimeout(res, ms));
 
-export async function gemini(body) {
-  const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + modelo() + ":generateContent", {
-    method: "POST",
-    headers: { "x-goog-api-key": env("GEMINI_API_KEY"), "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
+async function llamarGemini(nombre, body) {
+  let r;
+  try {
+    r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + nombre + ":generateContent", {
+      method: "POST",
+      headers: { "x-goog-api-key": env("GEMINI_API_KEY"), "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    return { pasajero: true, error: new Error("Gemini sin conexión: " + e.message) };
+  }
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error("Gemini " + r.status + ": " + JSON.stringify(j.error || j));
+  if (!r.ok) return { pasajero: PASAJERO.has(r.status), error: new Error("Gemini " + r.status + ": " + JSON.stringify(j.error || j)) };
   const c = j.candidates && j.candidates[0];
-  return c && c.content;
+  return { content: c && c.content };
+}
+
+// Si el modelo está saturado, espera y reintenta; si sigue igual, prueba con uno más liviano.
+export async function gemini(body) {
+  const modelos = [modelo(), MODELO_RESPALDO].filter((m, i, a) => a.indexOf(m) === i);
+  let ultimo;
+  for (const nombre of modelos) {
+    const esperas = nombre === modelos[0] ? ESPERAS_MS() : ESPERAS_MS().slice(0, 1);
+    for (let i = 0; ; i++) {
+      const r = await llamarGemini(nombre, body);
+      if (!r.error) return r.content;
+      ultimo = r.error;
+      if (!r.pasajero) throw r.error;
+      if (i >= esperas.length) break;
+      console.warn("Gemini ocupado (" + nombre + "), reintentando…");
+      await dormir(esperas[i]);
+    }
+  }
+  throw ultimo;
 }
 
 export async function transcribir(mediaId) {
