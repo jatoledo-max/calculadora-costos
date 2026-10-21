@@ -15,7 +15,7 @@ correr "Base de datos" tests/db/correr.sh
 SERVIDOR=$!
 trap 'kill $SERVIDOR 2>/dev/null' EXIT
 for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:8765/ && break; sleep 0.5; done
-for t in caja cierre informes ficha menu-calc celular integral; do
+for t in caja cierre informes ficha menu-calc pedidos celular integral; do
   correr "Pantalla: $t" node "tests/e2e/$t.e2e.cjs"
 done
 

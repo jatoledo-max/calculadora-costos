@@ -2,9 +2,9 @@
 // Regla: los archivos de la app se piden SIEMPRE primero a internet (así cada cambio llega enseguida) y,
 // si no hay conexión o tarda demasiado, se usa la última copia guardada. Los datos (Supabase, Mercado Pago)
 // nunca se guardan acá: una venta sin internet no se guarda en ningún lado y la pantalla lo avisa.
-const CACHE = "ganancias-app-v5";
+const CACHE = "ganancias-app-v6";
 const APP = [
-  "./", "index.html", "styles.css", "app.js", "calculadora.js", "caja.js", "informe.js", "informes.js", "copia.js", "menu.js", "plural.js", "fotos.js", "costos.js", "dinero.js", "stores.js", "config.js",
+  "./", "index.html", "styles.css", "app.js", "calculadora.js", "caja.js", "informe.js", "informes.js", "copia.js", "menu.js", "pedidos.js", "plural.js", "fotos.js", "costos.js", "dinero.js", "stores.js", "config.js",
   "manifest.webmanifest", "iconos/icono-192.png", "iconos/favicon-32.png",
 ];
 // Librerías y fuentes de afuera con versión fija: no cambian, se guardan la primera vez que se usan.
@@ -62,3 +62,13 @@ async function primeroGuardado(req) {
   if (res.ok || res.type === "opaque") cache.put(req, res.clone());
   return res;
 }
+
+// Tocar el aviso de "Nuevo pedido" abre (o trae al frente) la app en la pestaña Pedidos.
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || "./?tab=pedidos";
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((ws) => {
+    const w = ws.find((c) => "focus" in c);
+    return w ? w.focus() : self.clients.openWindow(url);
+  }));
+});

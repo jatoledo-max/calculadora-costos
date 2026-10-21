@@ -5,6 +5,7 @@ import { iniciarCaja } from "./caja.js";
 import { iniciarInformes } from "./informes.js";
 import { iniciarCopias } from "./copia.js";
 import { iniciarMenuNegocio } from "./menu.js";
+import { iniciarPedidos } from "./pedidos.js";
 import { subirFotoSupabase, subirFotoDemo } from "./fotos.js";
 
 const $ = (s) => document.querySelector(s);
@@ -91,6 +92,7 @@ function arrancarDemo() {
   iniciarInformes(calc, caja, iniciarCaja(calc, caja));
   iniciarCopias(caja, () => neg.nombre);
   iniciarMenuNegocio(calc, () => neg.nombre, null);
+  iniciarPedidos(calc, null);
 }
 
 // ---------- Modo real (Supabase) ----------
@@ -187,6 +189,7 @@ async function arrancar() {
       if (error) throw new Error(error.message);
       return data;
     });
+    iniciarPedidos(calc, pedidosSupabase(supabase, session));
   }
 
   // Pantalla de pago: al vencer la prueba, o desde la app si el negocio quiere suscribirse antes.
@@ -224,6 +227,42 @@ async function arrancar() {
 
   const { data } = await supabase.auth.getSession();
   seguir(data.session);
+}
+
+// Pedidos de WhatsApp: se leen con RLS (solo los del negocio); el estado se cambia en el servidor,
+// que además le avisa al cliente por WhatsApp.
+function pedidosSupabase(supabase, session) {
+  const token = async () => ((await supabase.auth.getSession()).data.session || session).access_token;
+  return {
+    async pedidos() {
+      // Los que siguen en curso, más los terminados de las últimas 12 horas.
+      const desde = new Date(Date.now() - 12 * 3600000).toISOString();
+      const { data, error } = await supabase.from("wa_pedidos").select("*")
+        .or("estado.not.in.(entregado,rechazado),actualizado.gte.\"" + desde + "\"").order("creado", { ascending: true }).limit(200);
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    async charlas() {
+      const { data, error } = await supabase.from("wa_charlas").select("telefono, nombre, necesita_humano")
+        .not("necesita_humano", "is", null).order("ultimo_mensaje_en", { ascending: false });
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    async cambiarEstado(id, estado, motivo) {
+      const r = await fetch("/.netlify/functions/pedido-estado", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + (await token()), "content-type": "application/json" },
+        body: JSON.stringify({ id, estado, motivo }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || "No se pudo cambiar el estado.");
+      return j;
+    },
+    async soltarCharla(telefono) {
+      const { error } = await supabase.from("wa_charlas").update({ necesita_humano: null, pausada_hasta: null }).eq("telefono", telefono);
+      if (error) throw new Error(error.message);
+    },
+  };
 }
 
 // ---------- Celular: instalar como app y avisar sin conexión ----------

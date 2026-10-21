@@ -31,6 +31,16 @@ Tiene 14 días de prueba gratis y después se cobra una suscripción mensual con
 - `supabase/schema.sql`: tablas y reglas de seguridad. Cada negocio solo puede leer y escribir lo suyo, y solo con prueba vigente o suscripción activa.
 - `netlify/functions/crear-suscripcion.mjs`: crea la suscripción mensual en Mercado Pago y devuelve el link de pago.
 - `netlify/functions/mp-webhook.mjs`: recibe los avisos de Mercado Pago y activa o bloquea el negocio.
+- **Asistente de WhatsApp** (pestaña Pedidos):
+  - `netlify/functions/whatsapp.mjs`: webhook de la API oficial de WhatsApp (Meta). Comprueba la firma y le pasa el aviso a
+    `whatsapp-procesar-background.mjs`, que transcribe audios, junta los mensajes seguidos de un cliente y contesta con la IA
+    de Google (Gemini). Fuera de horario solo avisa que está cerrado. Si el dueño contesta desde la app WhatsApp Business,
+    el asistente se corre de esa charla por 3 horas.
+  - `netlify/lib/asistente.mjs`: instrucciones de la IA, herramientas (`cotizar`, `confirmar_pedido`, `derivar_a_humano`),
+    horarios y textos para el cliente. Los precios y totales salen siempre de `cotizar_pedido` (la misma regla del menú online).
+  - `netlify/functions/pedido-estado.mjs`: Aceptar / En preparación / En camino / Entregado / Rechazar desde la app, con aviso al cliente.
+  - `public/pedidos.js`: la pestaña Pedidos (suena con cada pedido nuevo, charlas que necesitan al dueño, encender/apagar el asistente).
+  - `supabase/whatsapp.sql`: charlas, pedidos y sus estados. Se corre después de `menu.sql`.
 
 ## Puesta en marcha
 
@@ -47,6 +57,11 @@ Tiene 14 días de prueba gratis y después se cobra una suscripción mensual con
    - `MP_WEBHOOK_SECRET` (recomendado): la clave secreta del webhook de Mercado Pago.
 4. **Mercado Pago**: en *Tus integraciones > Webhooks*, poner `https://TU-SITIO.netlify.app/.netlify/functions/mp-webhook`
    y marcar el evento *Planes y suscripciones*.
+
+5. **Asistente de WhatsApp** (opcional): correr `supabase/whatsapp.sql` en Supabase y cargar en Netlify
+   `GEMINI_API_KEY`, `WA_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_VERIFY_TOKEN`, `WA_APP_SECRET` y `WA_SLUG` (la dirección del menú).
+   En Meta (*tu app > WhatsApp > Configuración*), webhook `https://TU-SITIO.netlify.app/.netlify/functions/whatsapp` con el mismo
+   `WA_VERIFY_TOKEN`, campos `messages` y `smb_message_echoes`. Se enciende desde la pestaña Pedidos.
 
 ## Instalar en el celular (Android)
 

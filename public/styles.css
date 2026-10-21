@@ -481,3 +481,28 @@ details.cuentas > * + * { margin-top: 8px; }
 .mn-lista { list-style: none; margin: 6px 0 12px; padding: 0; display: grid; gap: 4px; }
 .mn-lista li { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 0.92rem; }
 .mn-json { max-height: 320px; overflow: auto; font-size: 0.75rem; background: var(--surface); border-radius: 10px; padding: 10px; white-space: pre-wrap; word-break: break-word; }
+
+/* ---------- Pestaña Pedidos (asistente de WhatsApp) ---------- */
+.ped-view { display: grid; gap: 12px; max-width: 640px; padding-top: 4px; }
+.ped-card { display: grid; gap: 8px; }
+.ped-acc { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ped-acc .btn.grande { flex: 1 1 220px; }
+.ped-cab { display: flex; align-items: baseline; gap: 10px; }
+.ped-num { font-family: var(--f-display); font-size: 1.4rem; }
+.ped-hora { color: var(--muted); }
+.ped-estado { margin-left: auto; font: 700 0.8rem var(--f-body); padding: 3px 10px; border-radius: 999px; background: var(--tag); }
+.ped-nuevo { border: 2px solid var(--accent); }
+.ped-nuevo .ped-estado { background: var(--accent); color: var(--accent-ink); }
+.ped-en_camino .ped-estado { background: color-mix(in srgb, var(--good) 22%, var(--surface)); }
+.ped-rechazado { opacity: .7; }
+.ped-card p { margin: 0; }
+.ped-quien a, .ped-charla a, .ped-datos a { color: var(--accent-text); font-weight: 600; }
+.ped-notas { font-weight: 600; color: var(--warn); }
+.ped-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.ped-items li { display: flex; justify-content: space-between; gap: 12px; }
+.ped-total { border-top: 1px solid var(--line); padding-top: 4px; margin-top: 2px; font-weight: 700; font-size: 1.05rem; }
+.ped-ayuda { border: 2px solid var(--wine); }
+.ped-charla { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding-block: 6px; border-top: 1px solid var(--line); }
+.ped-charla .btn { margin-left: auto; }
+.ped-vacio { text-align: center; padding: 24px 0; }
+details.ped-card > summary { cursor: pointer; font-weight: 600; }
