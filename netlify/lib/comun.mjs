@@ -16,7 +16,8 @@ export async function supabaseAdmin(path, init = {}) {
     headers: { apikey: key, Authorization: "Bearer " + key, "content-type": "application/json", ...(init.headers || {}) },
   });
   if (!r.ok) throw new Error("Supabase " + r.status + ": " + (await r.text()));
-  return r.status === 204 ? null : r.json();
+  const texto = await r.text(); // con "Prefer: return=minimal" PostgREST responde 201 sin cuerpo
+  return texto ? JSON.parse(texto) : null;
 }
 
 // Devuelve el usuario dueño del token que mandó el navegador, o null.

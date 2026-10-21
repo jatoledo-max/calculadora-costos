@@ -41,6 +41,9 @@ Tiene 14 días de prueba gratis y después se cobra una suscripción mensual con
   - `netlify/functions/pedido-estado.mjs`: Aceptar / En preparación / En camino / Entregado / Rechazar desde la app, con aviso al cliente.
   - `public/pedidos.js`: la pestaña Pedidos (suena con cada pedido nuevo, charlas que necesitan al dueño, encender/apagar el asistente).
   - `supabase/whatsapp.sql`: charlas, pedidos y sus estados. Se corre después de `menu.sql`.
+  - `netlify/lib/atencion.mjs`: cómo se atiende un mensaje, igual para los dos canales (API de Meta o bot de la PC).
+  - `bot-whatsapp/`: el asistente sin la API de Meta. Corre en la PC del negocio conectado como dispositivo vinculado
+    (Baileys), contesta con la misma lógica y manda los avisos de estado que quedan en `wa_salida`. Ver `bot-whatsapp/LEEME.md`.
 
 ## Puesta en marcha
 

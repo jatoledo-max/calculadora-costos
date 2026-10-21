@@ -66,9 +66,14 @@ export async function gemini(body) {
 
 export async function transcribir(mediaId) {
   const { base64, mime } = await bajarMedia(mediaId);
+  return transcribirAudio(base64, mime);
+}
+
+// Pasa a texto un audio (en base64). Lo usan la API de Meta y el bot de la PC.
+export async function transcribirAudio(base64, mime) {
   const content = await gemini({
     contents: [{ role: "user", parts: [
-      { inlineData: { mimeType: mime, data: base64 } },
+      { inlineData: { mimeType: (mime || "audio/ogg").split(";")[0], data: base64 } },
       { text: "Transcribí este audio de un cliente de una rotisería argentina, tal cual lo dice, en español. Solo el texto, sin comentarios. Si no se entiende nada, respondé: (no se entiende)" },
     ] }],
     generationConfig: { temperature: 0 },

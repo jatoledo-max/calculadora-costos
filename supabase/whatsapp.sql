@@ -57,11 +57,25 @@ create table if not exists public.wa_pedidos (
   actualizado timestamptz not null default now(),
   unique (negocio_id, numero)
 );
+-- Avisos al cliente que esperan salir por el bot de la PC (cuando no se usa la API de Meta).
+-- Los escribe pedido-estado.mjs; el bot los manda y marca "enviado" (o "error" si no pudo).
+create table if not exists public.wa_salida (
+  id bigserial primary key,
+  negocio_id uuid not null references public.negocios (id) on delete cascade,
+  telefono text not null,
+  texto text not null,
+  creado timestamptz not null default now(),
+  enviado timestamptz,
+  error text
+);
+create index if not exists wa_salida_pendientes on public.wa_salida (negocio_id, id) where enviado is null and error is null;
+
 create index if not exists wa_pedidos_negocio_creado on public.wa_pedidos (negocio_id, creado desc);
 
 alter table public.wa_charlas enable row level security;
 alter table public.wa_mensajes enable row level security;
 alter table public.wa_pedidos enable row level security;
+alter table public.wa_salida enable row level security;
 
 -- El dueño ve lo suyo. Los cambios pasan por el servidor (estado + aviso al cliente) o por estas columnas.
 drop policy if exists "charlas del negocio" on public.wa_charlas;
@@ -74,7 +88,7 @@ drop policy if exists "pedidos del negocio" on public.wa_pedidos;
 create policy "pedidos del negocio" on public.wa_pedidos
   for select using (public.puede_usar(negocio_id));
 
-revoke all on public.wa_charlas, public.wa_mensajes, public.wa_pedidos from anon, authenticated;
+revoke all on public.wa_charlas, public.wa_mensajes, public.wa_pedidos, public.wa_salida from anon, authenticated;
 grant select on public.wa_charlas, public.wa_pedidos to authenticated;
 -- Desde la app el dueño solo puede pausar/reactivar el asistente en una charla y marcarla como atendida.
 grant update (pausada_hasta, necesita_humano) on public.wa_charlas to authenticated;
@@ -194,7 +208,8 @@ revoke all on function public.wa_limpiar() from public, anon, authenticated;
 do $$
 begin
   if exists (select 1 from pg_roles where rolname = 'service_role') then
-    grant select, insert, update, delete on public.wa_charlas, public.wa_mensajes, public.wa_pedidos to service_role;
+    grant select, insert, update, delete on public.wa_charlas, public.wa_mensajes, public.wa_pedidos, public.wa_salida to service_role;
+    grant usage on sequence public.wa_salida_id_seq to service_role;
     grant execute on function public.wa_registrar_pedido(text, text, text, jsonb, text, text, jsonb, text, text),
                               public.wa_cambiar_estado(uuid, uuid, text, text), public.wa_limpiar(), public.wa_contexto(text),
                               public.wa_encolar(uuid, text, text, text, text, jsonb), public.wa_tomar(uuid, text, text),

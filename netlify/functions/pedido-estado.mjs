@@ -1,5 +1,6 @@
 // La pestaña Pedidos llama acá cuando el dueño toca Aceptar, En preparación, En camino, Entregado o Rechazar.
-// Cambia el estado en la base y le avisa al cliente por WhatsApp (gratis dentro de las 24 h desde su último mensaje).
+// Cambia el estado en la base y le avisa al cliente por WhatsApp: directo por la API de Meta si está configurada
+// (WA_TOKEN), o dejando el mensaje en wa_salida para que lo mande el bot de la PC (bot-whatsapp/).
 import { json, supabaseAdmin, usuarioDelToken } from "../lib/comun.mjs";
 import { enviarTexto } from "../lib/whatsapp.mjs";
 import { mensajeEstado, ESTADOS } from "../lib/asistente.mjs";
@@ -28,8 +29,17 @@ export default async (req) => {
 
   const texto = mensajeEstado(pedido, b.estado, b.motivo);
   let avisado = null;
-  if (texto) {
+  if (texto && process.env.WA_TOKEN) {
     try { await enviarTexto(pedido.telefono, texto); avisado = true; } catch (e) { console.error(e); avisado = false; }
+  } else if (texto) {
+    try {
+      await supabaseAdmin("/rest/v1/wa_salida", {
+        method: "POST",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({ negocio_id: pedido.negocio_id, telefono: pedido.telefono, texto }),
+      });
+      avisado = "en_cola";
+    } catch (e) { console.error(e); avisado = false; }
   }
   return json(200, { pedido, avisado });
 };

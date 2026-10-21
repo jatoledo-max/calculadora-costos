@@ -1,0 +1,15 @@
+{
+  "name": "venutto-asistente-whatsapp",
+  "private": true,
+  "type": "module",
+  "description": "Asistente de WhatsApp que corre en la PC del negocio (ver LEEME.md).",
+  "engines": { "node": ">=20.6" },
+  "scripts": {
+    "start": "node --env-file=.env bot.mjs"
+  },
+  "dependencies": {
+    "baileys": "7.0.0-rc14",
+    "pino": "9.7.0",
+    "qrcode-terminal": "0.12.0"
+  }
+}

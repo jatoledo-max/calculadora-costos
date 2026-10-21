@@ -103,7 +103,7 @@ export function iniciarPedidos(calc, backend) {
       Object.assign(p, r.pedido);
       st.msg = r.avisado === false
         ? { ok: false, texto: "Pedido #" + p.numero + ": " + ESTADOS[estado] + ". No se le pudo avisar al cliente por WhatsApp (pasaron más de 24 h de su último mensaje o hubo un error): avisale vos." }
-        : { ok: true, texto: "Pedido #" + p.numero + ": " + ESTADOS[estado] + (r.avisado ? ". Le avisamos al cliente." : ".") };
+        : { ok: true, texto: "Pedido #" + p.numero + ": " + ESTADOS[estado] + (r.avisado === "en_cola" ? ". El bot le avisa al cliente en unos segundos." : r.avisado ? ". Le avisamos al cliente." : ".") };
     } catch (e) {
       st.msg = { ok: false, texto: e.message || "No se pudo cambiar el estado." };
     }
@@ -116,15 +116,20 @@ export function iniciarPedidos(calc, backend) {
   }
 
   // ---------- Pantalla ----------
+  // Link a la charla de WhatsApp. Algunos clientes llegan al bot sin número visible (WhatsApp lo oculta): solo el nombre.
+  function contacto(nombre, tel) {
+    if (!/^\d{8,15}$/.test(tel || "")) return el("span", null, nombre || "Cliente de WhatsApp");
+    const a = el("a", null, (nombre ? nombre + " · " : "") + "+" + tel);
+    a.href = "https://wa.me/" + tel; a.target = "_blank"; a.rel = "noopener";
+    return a;
+  }
   function tarjetaPedido(p) {
     const c = el("article", "card ped-card ped-" + p.estado);
     const cab = el("div", "ped-cab");
     cab.append(el("strong", "ped-num", "#" + p.numero), el("span", "ped-hora num", hora(p.creado)), el("span", "ped-estado", ESTADOS[p.estado]));
     c.append(cab);
     const quien = el("p", "ped-quien");
-    const wa = el("a", null, (p.nombre ? p.nombre + " · " : "") + "+" + p.telefono);
-    wa.href = "https://wa.me/" + p.telefono; wa.target = "_blank"; wa.rel = "noopener";
-    quien.append(wa);
+    quien.append(contacto(p.nombre, p.telefono));
     c.append(quien);
     const ul = el("ul", "ped-items");
     (p.renglones || []).forEach((r) => {
@@ -209,8 +214,7 @@ export function iniciarPedidos(calc, backend) {
       c.append(el("h3", null, "Te necesitan en WhatsApp"));
       st.charlas.forEach((ch) => {
         const f = el("div", "ped-charla");
-        const a = el("a", null, (ch.nombre ? ch.nombre + " · " : "") + "+" + ch.telefono);
-        a.href = "https://wa.me/" + ch.telefono; a.target = "_blank"; a.rel = "noopener";
+        const a = contacto(ch.nombre, ch.telefono);
         const b = el("button", "btn", "Listo, que siga el asistente");
         b.type = "button"; b.onclick = () => soltar(ch);
         f.append(a, el("span", "hint", ch.necesita_humano), b);

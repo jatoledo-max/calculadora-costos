@@ -118,3 +118,11 @@ reset role;
 do $$ begin
   if (select necesita_humano from public.wa_charlas where telefono = '5493850000009') is not null then raise exception 'El dueño no pudo reactivar la charla'; end if;
 end $$;
+
+-- Cola de avisos para el bot: solo el servidor la toca.
+insert into public.wa_salida (negocio_id, telefono, texto) values ('a0000000-0000-0000-0000-00000000000a', '5493850000001', 'Tu pedido está en camino');
+set role authenticated;
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-0000-0000-000000000001', false);
+select pg_temp.espera_error($q$select * from public.wa_salida$q$, 'permission denied');
+select pg_temp.espera_error($q$insert into public.wa_salida (negocio_id, telefono, texto) values ('a0000000-0000-0000-0000-00000000000a', '1', 'spam')$q$, 'permission denied');
+reset role;
