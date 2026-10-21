@@ -46,6 +46,10 @@ function simular({ activo = true, horarios = null, iaResponde = "¡Hola! ¿Qué 
       const pendientes = s.pendientes.splice(0);
       return respuesta(200, { telefono: body.p_telefono, nombre: "Marta", historial: [], historial_en: null, ubicacion: null, pendientes });
     }
+    if (u === "https://db.test/rest/v1/rpc/wa_soltar") {
+      if (!s.pendientes.length) return new Response("null", { status: 200 });
+      return respuesta(200, { telefono: body.p_telefono, nombre: "Marta", historial: [], historial_en: null, ubicacion: null, pendientes: s.pendientes.splice(0) });
+    }
     throw new Error("Pedido inesperado: " + metodo + " " + u);
   };
   return s;
@@ -138,6 +142,42 @@ test("un error que no es pasajero (clave mala) no se reintenta", async () => {
   await llamar(aviso([texto("m9", "hola")]));
   assert.equal(llamadas, 1);
   assert.match(s.enviados[0].text.body, /Perdón/);
+});
+
+test("si el cliente escribe mientras la IA piensa, contesta después y no dos respuestas a la vez", async () => {
+  const s = simular();
+  const original = globalThis.fetch;
+  let enCurso = 0, maximo = 0, vuelta = 0;
+  globalThis.fetch = async (u, i) => {
+    if (!String(u).includes("generativelanguage")) return original(u, i);
+    enCurso++; maximo = Math.max(maximo, enCurso);
+    vuelta++;
+    if (vuelta === 1) s.pendientes.push({ id: "m11", texto: "y??" }); // llegó mientras pensaba
+    const pedido = JSON.parse(i.body);
+    const ultimo = pedido.contents[pedido.contents.length - 1].parts[0].text;
+    await new Promise((r) => setTimeout(r, 5));
+    enCurso--;
+    return respuesta(200, { candidates: [{ content: { role: "model", parts: [{ text: "Respuesta a: " + ultimo }] } }] });
+  };
+  await llamar(aviso([texto("m10", "si por favor")]));
+  assert.equal(maximo, 1);
+  assert.deepEqual(s.enviados.map((e) => e.text.body), ["Respuesta a: si por favor", "Respuesta a: y??"]);
+});
+
+test("le pide a Gemini que piense poco (más rápido); si el modelo no lo acepta, pregunta sin eso", async () => {
+  const s = simular();
+  const original = globalThis.fetch;
+  const configs = [];
+  globalThis.fetch = (u, i) => {
+    if (!String(u).includes("generativelanguage")) return original(u, i);
+    const cfg = JSON.parse(i.body).generationConfig;
+    configs.push(cfg.thinkingConfig || null);
+    if (cfg.thinkingConfig) return Promise.resolve(respuesta(400, { error: { message: "thinking_level is not supported for this model" } }));
+    return Promise.resolve(respuesta(200, { candidates: [{ content: { role: "model", parts: [{ text: "¡Hola!" }] } }] }));
+  };
+  await llamar(aviso([texto("m12", "hola")]));
+  assert.deepEqual(configs, [{ thinkingLevel: "low" }, null]);
+  assert.equal(s.enviados[0].text.body, "¡Hola!");
 });
 
 test("webhook: Meta verifica la URL y los avisos firmados pasan a procesarse", async () => {

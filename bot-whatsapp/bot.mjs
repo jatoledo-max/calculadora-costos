@@ -41,12 +41,24 @@ async function contexto() {
   return valor;
 }
 
-async function enviarA(jid, texto) {
-  if (!sock || !conectado) throw new Error("WhatsApp desconectado");
+// "escribiendo…" desde que la IA empieza a pensar; al enviar solo se espera lo que falte para parecer natural.
+const escribiendoDesde = new Map();
+async function escribiendo(jid) {
+  escribiendoDesde.set(jid, Date.now());
   try {
     await sock.presenceSubscribe(jid);
     await sock.sendPresenceUpdate("composing", jid);
-    await dormir(demora(texto));
+  } catch (e) { /* es un detalle: si falla, sigue igual */ }
+}
+
+async function enviarA(jid, texto) {
+  if (!sock || !conectado) throw new Error("WhatsApp desconectado");
+  try {
+    const desde = escribiendoDesde.get(jid);
+    escribiendoDesde.delete(jid);
+    if (!desde) await sock.presenceSubscribe(jid);
+    await sock.sendPresenceUpdate("composing", jid);
+    await dormir(Math.max(0, demora(texto) - (desde ? Date.now() - desde : 0)));
     await sock.sendPresenceUpdate("paused", jid);
   } catch (e) { /* el "escribiendo…" es un detalle: si falla, se manda igual */ }
   const r = await sock.sendMessage(jid, { text: texto });
@@ -73,6 +85,7 @@ async function manejar(msg) {
   console.log(hora(), "Mensaje de", msg.pushName || tel, "(" + m.type + ")");
   await atender(c, SLUG, m, msg.pushName || null, {
     enviar: (_tel, texto) => enviarA(jid, texto),
+    escribiendo: () => escribiendo(jid),
     marcarLeido: () => sock.readMessages([msg.key]).catch(() => {}),
     async transcribir() {
       const buf = await downloadMediaMessage(msg, "buffer", {}, { logger: log, reuploadRequest: sock.updateMediaMessage });

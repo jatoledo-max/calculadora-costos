@@ -7,6 +7,7 @@
 //   WA_SLUG             la dirección del menú del negocio (Mi negocio > Menú de pedidos), ej "venutto"
 //   GEMINI_API_KEY      clave de Google AI Studio
 //   GEMINI_MODEL        opcional, por defecto gemini-flash-latest (el Flash más nuevo de Google)
+//   GEMINI_PENSAR       opcional, cuánto "piensa" antes de contestar: minimal, low (por defecto), medium, high
 import crypto from "node:crypto";
 import { env } from "./comun.mjs";
 
@@ -74,8 +75,24 @@ async function llamarGemini(nombre, body) {
   return { content: c && c.content };
 }
 
+// Los modelos nuevos "piensan" antes de contestar y eso tarda; para charlar con clientes alcanza con poco.
+const conPocoPensar = (body) => ({
+  ...body,
+  generationConfig: { ...body.generationConfig, thinkingConfig: { thinkingLevel: process.env.GEMINI_PENSAR || "low" } },
+});
+
 // Si el modelo está saturado, espera y reintenta; si sigue igual, prueba con uno más liviano.
 export async function gemini(body) {
+  try {
+    return await geminiConReintentos(conPocoPensar(body));
+  } catch (e) {
+    // Un modelo que no acepta ese ajuste: se pregunta igual, sin él.
+    if (/^Gemini 400/.test(e.message) && /thinking/i.test(e.message)) return geminiConReintentos(body);
+    throw e;
+  }
+}
+
+async function geminiConReintentos(body) {
   const modelos = [modelo(), MODELO_RESPALDO].filter((m, i, a) => a.indexOf(m) === i);
   let ultimo;
   for (const nombre of modelos) {

@@ -89,6 +89,14 @@ begin
   c := public.wa_tomar('a0000000-0000-0000-0000-00000000000a', '5493850000009', 'm2');
   if jsonb_array_length(c->'pendientes') <> 2 or c->>'nombre' <> 'Juan' or c->'ubicacion'->>'lat' <> '1' then raise exception 'fila mal: %', c; end if;
   if public.wa_tomar('a0000000-0000-0000-0000-00000000000a', '5493850000009', 'm2') is not null then raise exception 'se contestó dos veces'; end if;
+  -- Mientras la IA contesta llega otro mensaje: no arranca una segunda respuesta en paralelo...
+  perform public.wa_encolar('a0000000-0000-0000-0000-00000000000a', '5493850000009', null, 'm3', 'y??', null);
+  if public.wa_tomar('a0000000-0000-0000-0000-00000000000a', '5493850000009', 'm3') is not null then raise exception 'dos respuestas a la vez'; end if;
+  -- ...sino que al terminar la primera, se lo lleva para contestarlo enseguida.
+  c := public.wa_soltar('a0000000-0000-0000-0000-00000000000a', '5493850000009');
+  if c->'pendientes'->0->>'texto' <> 'y??' then raise exception 'soltar no devolvió lo nuevo: %', c; end if;
+  if public.wa_soltar('a0000000-0000-0000-0000-00000000000a', '5493850000009') is not null then raise exception 'soltar sin nada nuevo'; end if;
+  if (select contestando_hasta from public.wa_charlas where telefono = '5493850000009') is not null then raise exception 'no se liberó'; end if;
 end $$;
 update public.wa_charlas set necesita_humano = 'Quiere hablar con alguien', historial = '[{"role":"user"}]' where telefono = '5493850000009';
 

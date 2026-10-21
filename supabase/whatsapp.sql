@@ -21,6 +21,7 @@ create table if not exists public.wa_charlas (
   necesita_humano text,                  -- motivo por el que el asistente pidió ayuda; null = no
   cerrado_avisado_en timestamptz,        -- último "estamos cerrados", para no repetirlo en cada mensaje
   pendientes jsonb not null default '[]', -- mensajes que llegaron seguidos y todavía no se contestaron
+  contestando_hasta timestamptz,         -- mientras sea futuro, la IA está armando una respuesta para esta charla
   ultimo_mensaje_en timestamptz not null default now(),   -- del cliente: abre la ventana de 24 h de WhatsApp
   primary key (negocio_id, telefono)
 );
@@ -28,6 +29,7 @@ create table if not exists public.wa_charlas (
 -- Columnas agregadas después de la primera versión (si la tabla ya existía).
 alter table public.wa_charlas add column if not exists historial_en timestamptz;
 alter table public.wa_charlas add column if not exists pendientes jsonb not null default '[]';
+alter table public.wa_charlas add column if not exists contestando_hasta timestamptz;
 
 -- Mensajes ya procesados: Meta puede mandar el mismo aviso más de una vez.
 create table if not exists public.wa_mensajes (
@@ -122,16 +124,38 @@ $$;
 revoke all on function public.wa_encolar(uuid, text, text, text, text, jsonb) from public, anon, authenticated;
 
 -- Devuelve la charla con sus mensajes pendientes (y los saca de la fila) si p_id es el último que llegó; si no, null.
+-- Una sola respuesta por charla a la vez: si la IA ya está contestando, los mensajes nuevos quedan en la fila
+-- y los toma wa_soltar cuando esa respuesta termina (así no se cruzan dos respuestas).
 create or replace function public.wa_tomar(p_negocio uuid, p_telefono text, p_id text)
 returns jsonb language plpgsql volatile security definer set search_path = public as $$
 declare c public.wa_charlas;
 begin
   select * into c from public.wa_charlas where negocio_id = p_negocio and telefono = p_telefono for update;
   if not found or jsonb_array_length(c.pendientes) = 0 or c.pendientes->-1->>'id' <> p_id then return null; end if;
-  update public.wa_charlas set pendientes = '[]' where negocio_id = p_negocio and telefono = p_telefono;
+  if c.contestando_hasta > now() then return null; end if;
+  update public.wa_charlas set pendientes = '[]', contestando_hasta = now() + interval '2 minutes'
+   where negocio_id = p_negocio and telefono = p_telefono;
   return to_jsonb(c);
 end $$;
 revoke all on function public.wa_tomar(uuid, text, text) from public, anon, authenticated;
+
+-- Terminó una respuesta: si mientras tanto llegaron mensajes, los devuelve (con la charla ya actualizada)
+-- para contestarlos enseguida; si no, libera la charla.
+create or replace function public.wa_soltar(p_negocio uuid, p_telefono text)
+returns jsonb language plpgsql volatile security definer set search_path = public as $$
+declare c public.wa_charlas;
+begin
+  select * into c from public.wa_charlas where negocio_id = p_negocio and telefono = p_telefono for update;
+  if not found then return null; end if;
+  if jsonb_array_length(c.pendientes) = 0 then
+    update public.wa_charlas set contestando_hasta = null where negocio_id = p_negocio and telefono = p_telefono;
+    return null;
+  end if;
+  update public.wa_charlas set pendientes = '[]', contestando_hasta = now() + interval '2 minutes'
+   where negocio_id = p_negocio and telefono = p_telefono;
+  return to_jsonb(c);
+end $$;
+revoke all on function public.wa_soltar(uuid, text) from public, anon, authenticated;
 
 -- Guarda un pedido confirmado por el cliente. Recalcula con cotizar_pedido: el importe nunca lo pone la IA.
 -- Si el mismo cliente confirma lo mismo dos veces seguidas (reintento), devuelve el pedido que ya estaba.
@@ -212,7 +236,7 @@ begin
     grant usage on sequence public.wa_salida_id_seq to service_role;
     grant execute on function public.wa_registrar_pedido(text, text, text, jsonb, text, text, jsonb, text, text),
                               public.wa_cambiar_estado(uuid, uuid, text, text), public.wa_limpiar(), public.wa_contexto(text),
-                              public.wa_encolar(uuid, text, text, text, text, jsonb), public.wa_tomar(uuid, text, text),
+                              public.wa_encolar(uuid, text, text, text, text, jsonb), public.wa_tomar(uuid, text, text), public.wa_soltar(uuid, text),
                               public.menu_publico(text), public.cotizar_pedido(text, jsonb, text) to service_role;
   end if;
 end $$;

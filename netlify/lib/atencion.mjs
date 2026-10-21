@@ -1,12 +1,12 @@
 // Cómo se atiende un mensaje de un cliente, sin importar por dónde llegó: la API oficial de Meta
 // (functions/whatsapp-procesar-background.mjs) o el bot que corre en la PC del negocio (bot-whatsapp/).
 // El mensaje llega con la forma de Meta ({ id, from, type, text: { body } }, audio, location...) y
-// "canal" dice cómo contestar: { enviar(tel, texto), marcarLeido(id), transcribir(mediaId, mime) }.
+// "canal" dice cómo contestar: { enviar(tel, texto), marcarLeido(id), transcribir(mediaId, mime), escribiendo?(tel) }.
 import { supabaseAdmin } from "./comun.mjs";
 import { gemini } from "./whatsapp.mjs";
 import { estaAbierto, mensajeCerrado, responder, textoDelMensaje, HORAS_CHARLA_NUEVA, HORAS_ENTRE_AVISOS_CERRADO } from "./asistente.mjs";
 
-const ESPERA_MS = () => Number(process.env.WA_ESPERA_MS || 5000); // para juntar mensajes seguidos en una sola respuesta
+const ESPERA_MS = () => Number(process.env.WA_ESPERA_MS || 3000); // para juntar mensajes seguidos en una sola respuesta
 const horasAtras = (iso, h) => !iso || Date.now() - new Date(iso).getTime() > h * 3600000;
 export const enHoras = (h) => new Date(Date.now() + h * 3600000).toISOString();
 const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -71,14 +71,19 @@ export async function atender(ctx, slug, m, nombre, canal) {
 
     // Si el cliente sigue escribiendo, contesta el último mensaje (con todos los anteriores juntos).
     await dormir(ESPERA_MS());
-    const charla = await rpc("wa_tomar", { p_negocio: neg, p_telefono: tel, p_id: m.id });
-    if (!charla) return;
-    await contestar(ctx, slug, charla, canal);
+    let charla = await rpc("wa_tomar", { p_negocio: neg, p_telefono: tel, p_id: m.id });
+    // Una respuesta por charla a la vez. Si el cliente escribió mientras la IA pensaba, se contesta
+    // enseguida después, ya sabiendo lo que se le dijo (y no dos respuestas cruzadas).
+    while (charla) {
+      if (canal.escribiendo) canal.escribiendo(tel);
+      await contestar(ctx, slug, charla, canal);
+      charla = await rpc("wa_soltar", { p_negocio: neg, p_telefono: tel });
+    }
   } catch (e) {
     console.error(e);
     try {
       await canal.enviar(tel, "Perdón, tuve un problema para responderte 🙏 En un ratito te contesta alguien del local.");
-      await patchCharla(neg, tel, { necesita_humano: "El asistente tuvo un error y no pudo responder", pausada_hasta: enHoras(2) });
+      await patchCharla(neg, tel, { necesita_humano: "El asistente tuvo un error y no pudo responder", pausada_hasta: enHoras(2), contestando_hasta: null });
     } catch (x) { console.error(x); }
   }
 }
