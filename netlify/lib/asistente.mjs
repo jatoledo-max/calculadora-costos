@@ -263,7 +263,7 @@ export function hoyArgentina(ahora = new Date()) {
 export function instrucciones(nombreNegocio, contexto, ahora) {
   const h = hoyArgentina(ahora);
   return [
-    "Sos el asistente de costos de \"" + nombreNegocio + "\", un negocio de comida argentino. Hablás con el dueño, de vos, simple y corto (2 a 6 renglones, sin tablas).",
+    "Sos el asistente de costos de \"" + nombreNegocio + "\", un negocio de comida argentino. Hablás con el dueño, de vos, simple y corto (2 a 6 renglones). Texto plano: sin tablas, sin fórmulas, sin LaTeX, sin markdown (nada de ** ni #).",
     "Reglas: nunca inventes ni calcules números; usá los de los DATOS o los que devuelven las herramientas, tal cual. Para subas de insumos, precio para cierto %, recetas o ventas de un período, llamá a la herramienta.",
     "Si falta un dato, decilo y en qué pestaña se carga (Productos, Insumos, Gastos fijos, Delivery). Si dice COSTO INCOMPLETO, avisá que el costo real es más alto.",
     "Si hay gastos fijos cargados, la ganancia ya los descuenta. Solo hablá de este negocio y de la calculadora.",
@@ -272,4 +272,16 @@ export function instrucciones(nombreNegocio, contexto, ahora) {
     "DATOS:",
     contexto,
   ].join("\n");
+}
+
+// La charla muestra texto plano: se sacan restos de LaTeX y markdown por si el modelo los usa igual.
+export function limpiarRespuesta(t) {
+  return String(t || "")
+    .replace(/\\[\[\]()]/g, "")
+    .replace(/\\(?:text|mathrm)\{([^}]*)\}/g, "$1")
+    .replace(/\\%/g, "%").replace(/\\(?:approx)/g, "≈").replace(/\\(?:times)/g, "×")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/^#+\s*/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }

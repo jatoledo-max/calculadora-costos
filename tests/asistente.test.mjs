@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { armarContexto, ejecutarHerramienta, resumirVentas, instrucciones } from "../netlify/lib/asistente.mjs";
+import { armarContexto, ejecutarHerramienta, resumirVentas, instrucciones, limpiarRespuesta } from "../netlify/lib/asistente.mjs";
 
 const datos = createRequire(import.meta.url)("./e2e/datos-demo.cjs");
 const estado = () => structuredClone(datos);
@@ -203,4 +203,8 @@ test("función: si el modelo se llena entre la pregunta y la cuenta, la segunda 
   } finally {
     globalThis.fetch = original;
   }
+});
+
+test("la respuesta sale en texto plano aunque el modelo use LaTeX o markdown", () => {
+  assert.equal(limpiarRespuesta("**Margen** \\[ \\text{ganancia} \\approx 38\\% \\]\n\n\n## Listo"), "Margen  ganancia ≈ 38% \n\nListo");
 });

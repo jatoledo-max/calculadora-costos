@@ -2,7 +2,7 @@
 // Lee los datos del negocio de ese usuario (solo los suyos), los calcula con costos.js y le pregunta a Groq.
 // Variables de entorno: GROQ_API_KEY (gratis en console.groq.com) y, opcional, GROQ_MODEL.
 import { env, json, supabaseAdmin, usuarioDelToken } from "../lib/comun.mjs";
-import { armarContexto, instrucciones, HERRAMIENTAS, ejecutarHerramienta } from "../lib/asistente.mjs";
+import { armarContexto, instrucciones, HERRAMIENTAS, ejecutarHerramienta, limpiarRespuesta } from "../lib/asistente.mjs";
 
 // Modelos gratis de Groq, en orden. Cada uno tiene su propio límite por minuto: si uno se llena, se pasa al siguiente.
 // (Los Llama gratis los dio de baja Groq en agosto de 2026.)
@@ -101,7 +101,7 @@ export default async (req) => {
     for (let vuelta = 0; vuelta <= MAX_VUELTAS; vuelta++) {
       const m = await preguntarIA(mensajes, ronda);
       if (!m.tool_calls || !m.tool_calls.length || vuelta === MAX_VUELTAS) {
-        const texto = (m.content || "").trim();
+        const texto = limpiarRespuesta(m.content);
         return json(200, { respuesta: texto || "No pude armar una respuesta. Probá preguntarlo de otra forma." });
       }
       mensajes.push({ role: "assistant", content: m.content || "", tool_calls: m.tool_calls });
