@@ -6,6 +6,7 @@ import { iniciarInformes } from "./informes.js";
 import { iniciarCopias } from "./copia.js";
 import { iniciarMenuNegocio } from "./menu.js";
 import { subirFotoSupabase, subirFotoDemo } from "./fotos.js";
+import { iniciarAsistente, preguntarConCuenta } from "./asistente.js";
 
 const $ = (s) => document.querySelector(s);
 const PANTALLAS = ["cargando", "login", "alta", "pago", "app"];
@@ -91,6 +92,7 @@ function arrancarDemo() {
   iniciarInformes(calc, caja, iniciarCaja(calc, caja));
   iniciarCopias(caja, () => neg.nombre);
   iniciarMenuNegocio(calc, () => neg.nombre, null);
+  iniciarAsistente(null);
 }
 
 // ---------- Modo real (Supabase) ----------
@@ -187,6 +189,7 @@ async function arrancar() {
       if (error) throw new Error(error.message);
       return data;
     });
+    iniciarAsistente(preguntarConCuenta(supabase));
   }
 
   // Pantalla de pago: al vencer la prueba, o desde la app si el negocio quiere suscribirse antes.

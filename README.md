@@ -31,6 +31,9 @@ Tiene 14 días de prueba gratis y después se cobra una suscripción mensual con
 - `supabase/schema.sql`: tablas y reglas de seguridad. Cada negocio solo puede leer y escribir lo suyo, y solo con prueba vigente o suscripción activa.
 - `netlify/functions/crear-suscripcion.mjs`: crea la suscripción mensual en Mercado Pago y devuelve el link de pago.
 - `netlify/functions/mp-webhook.mjs`: recibe los avisos de Mercado Pago y activa o bloquea el negocio.
+- `netlify/functions/asistente.mjs` y `netlify/lib/asistente.mjs`: pestaña Asistente. El dueño pregunta y una IA gratis (Groq)
+  contesta con los datos de su negocio. Los números los calcula `costos.js` en el servidor (igual que la pantalla) y la IA
+  pide las cuentas que necesita (subas de insumos, precio para cierto margen, recetas, ventas de un período) en vez de inventarlas.
 
 ## Puesta en marcha
 
@@ -45,6 +48,8 @@ Tiene 14 días de prueba gratis y después se cobra una suscripción mensual con
    - `MP_ACCESS_TOKEN`: el Access Token de producción de Mercado Pago (*Tus integraciones > Credenciales*).
    - `MP_PRECIO_MENSUAL`: el precio en pesos, por ejemplo `20000`. Actualizar también `PRECIO_MENSUAL_TEXTO` en `config.js`.
    - `MP_WEBHOOK_SECRET` (recomendado): la clave secreta del webhook de Mercado Pago.
+   - `GROQ_API_KEY`: clave gratis de console.groq.com (*API Keys > Create API Key*) para la pestaña Asistente.
+     Opcional `GROQ_MODEL` para usar otro modelo (por defecto `openai/gpt-oss-120b`; si está saturado usa `llama-3.3-70b-versatile`).
 4. **Mercado Pago**: en *Tus integraciones > Webhooks*, poner `https://TU-SITIO.netlify.app/.netlify/functions/mp-webhook`
    y marcar el evento *Planes y suscripciones*.
 

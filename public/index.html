@@ -70,6 +70,7 @@
         <button id="tab-insumos" role="tab" aria-selected="false" data-tab="insumos">Insumos</button>
         <button id="tab-gastos" role="tab" aria-selected="false" data-tab="gastos">Gastos fijos</button>
         <button id="tab-delivery" role="tab" aria-selected="false" data-tab="delivery">Delivery</button>
+        <button id="tab-asistente" role="tab" aria-selected="false" data-tab="asistente">Asistente</button>
         <button id="tab-negocio" role="tab" aria-selected="false" data-tab="negocio">Mi negocio</button>
       </nav>
       <button class="btn-instalar" id="btn-instalar" type="button" hidden>Instalar app</button>
@@ -202,6 +203,23 @@
       <div class="kpi"><span class="k">Resultado del envío por pedido</span><span class="v num" id="del-resultado">—</span><span class="note" id="del-resultado-nota"></span></div>
     </div>
     <p class="hint" id="del-incluido" style="margin-top:12px"></p>
+  </section>
+
+  <section id="view-asistente" data-view="asistente" hidden>
+    <div class="card asis">
+      <div class="asis-cab">
+        <div>
+          <h2>Preguntale a tu calculadora</h2>
+          <p class="hint">Contesta con tus insumos, recetas, gastos y ventas. Las cuentas las hace la calculadora; revisá siempre los números importantes.</p>
+        </div>
+        <button class="btn ghost" id="asis-borrar" type="button" hidden>Empezar de nuevo</button>
+      </div>
+      <div class="asis-mensajes" id="asis-mensajes" aria-live="polite"></div>
+      <form class="asis-form" id="asis-form">
+        <textarea id="asis-pregunta" rows="2" maxlength="600" placeholder="Escribí tu pregunta…" aria-label="Tu pregunta"></textarea>
+        <button class="btn primary" id="asis-enviar" type="submit">Preguntar</button>
+      </form>
+    </div>
   </section>
 
   <section id="view-negocio" data-view="negocio" hidden>

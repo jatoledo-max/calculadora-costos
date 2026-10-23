@@ -2,9 +2,9 @@
 // Regla: los archivos de la app se piden SIEMPRE primero a internet (así cada cambio llega enseguida) y,
 // si no hay conexión o tarda demasiado, se usa la última copia guardada. Los datos (Supabase, Mercado Pago)
 // nunca se guardan acá: una venta sin internet no se guarda en ningún lado y la pantalla lo avisa.
-const CACHE = "ganancias-app-v6";
+const CACHE = "ganancias-app-v7";
 const APP = [
-  "./", "index.html", "styles.css", "app.js", "calculadora.js", "caja.js", "informe.js", "informes.js", "copia.js", "menu.js", "plural.js", "fotos.js", "costos.js", "dinero.js", "stores.js", "config.js",
+  "./", "index.html", "styles.css", "app.js", "calculadora.js", "caja.js", "informe.js", "informes.js", "copia.js", "menu.js", "plural.js", "fotos.js", "asistente.js", "costos.js", "dinero.js", "stores.js", "config.js",
   "manifest.webmanifest", "iconos/icono-192.png", "iconos/favicon-32.png",
 ];
 // Librerías y fuentes de afuera con versión fija: no cambian, se guardan la primera vez que se usan.

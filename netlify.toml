@@ -2,6 +2,10 @@
   publish = "public"
   functions = "netlify/functions"
 
+# esbuild junta cada función con lo que importa (el asistente usa public/costos.js, la misma cuenta que la pantalla).
+[functions]
+  node_bundler = "esbuild"
+
 # El service worker y el manifiesto no se guardan en caché del navegador: así cada versión nueva se detecta enseguida.
 [[headers]]
   for = "/sw.js"
