@@ -49,7 +49,7 @@ Tiene 14 días de prueba gratis y después se cobra una suscripción mensual con
    - `MP_PRECIO_MENSUAL`: el precio en pesos, por ejemplo `20000`. Actualizar también `PRECIO_MENSUAL_TEXTO` en `config.js`.
    - `MP_WEBHOOK_SECRET` (recomendado): la clave secreta del webhook de Mercado Pago.
    - `GROQ_API_KEY`: clave gratis de console.groq.com (*API Keys > Create API Key*) para el asistente (botón "Preguntar" en Informes).
-     Opcional `GROQ_MODEL` para usar otro modelo (por defecto `openai/gpt-oss-120b`; si está saturado usa `llama-3.3-70b-versatile`).
+     Opcional `GROQ_MODEL` para usar otro modelo (por defecto `openai/gpt-oss-120b`; si se llena su límite por minuto usa `openai/gpt-oss-20b`).
 4. **Mercado Pago**: en *Tus integraciones > Webhooks*, poner `https://TU-SITIO.netlify.app/.netlify/functions/mp-webhook`
    y marcar el evento *Planes y suscripciones*.
 

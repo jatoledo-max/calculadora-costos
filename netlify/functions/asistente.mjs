@@ -4,10 +4,11 @@
 import { env, json, supabaseAdmin, usuarioDelToken } from "../lib/comun.mjs";
 import { armarContexto, instrucciones, HERRAMIENTAS, ejecutarHerramienta } from "../lib/asistente.mjs";
 
-const MODELO = "openai/gpt-oss-120b";
-const MODELO_RESPALDO = "llama-3.3-70b-versatile"; // si el primero está saturado o llegó a su límite del día
+// Modelos gratis de Groq, en orden. Cada uno tiene su propio límite por minuto: si uno se llena, se pasa al siguiente.
+// (Los Llama gratis los dio de baja Groq en agosto de 2026.)
+const MODELOS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"];
 const MAX_PREGUNTA = 600;
-const MAX_HISTORIAL = 8; // mensajes anteriores que se mandan (las respuestas viejas no hacen falta enteras)
+const MAX_HISTORIAL = 6; // mensajes anteriores que se mandan (las respuestas viejas no hacen falta enteras)
 const MAX_VUELTAS = 4; // veces que la IA puede pedir una cuenta antes de contestar
 
 async function groq(modelo, mensajes) {
@@ -15,7 +16,7 @@ async function groq(modelo, mensajes) {
     method: "POST",
     headers: { Authorization: "Bearer " + env("GROQ_API_KEY"), "content-type": "application/json" },
     body: JSON.stringify({
-      model: modelo, messages: mensajes, tools: HERRAMIENTAS, tool_choice: "auto", temperature: 0.2, max_tokens: 900,
+      model: modelo, messages: mensajes, tools: HERRAMIENTAS, tool_choice: "auto", temperature: 0.2, max_tokens: 700,
       ...(modelo.startsWith("openai/gpt-oss") ? { reasoning_effort: "low" } : {}),
     }),
   });
@@ -39,21 +40,25 @@ async function groqConReintento(modelo, mensajes) {
   }
 }
 
-// Pide al modelo principal y, si falla por cualquier cosa que no sea la clave, al de respaldo.
-async function preguntarIA(mensajes) {
-  const principal = process.env.GROQ_MODEL || MODELO;
-  try {
-    return await groqConReintento(principal, mensajes);
-  } catch (e) {
-    if ([401, 403].includes(e.status) || principal === MODELO_RESPALDO) throw e;
-    console.error(e.message, "→ uso", MODELO_RESPALDO);
+// Prueba los modelos en orden desde "ronda.modelo" y recuerda cuál anduvo, así la vuelta siguiente
+// (con el resultado de una cuenta) no vuelve a chocar con el que ya se llenó. Si la clave es mala, no sigue.
+async function preguntarIA(mensajes, ronda) {
+  const modelos = process.env.GROQ_MODEL ? [process.env.GROQ_MODEL, ...MODELOS.filter((m) => m !== process.env.GROQ_MODEL)] : MODELOS;
+  const fallas = [];
+  for (let i = ronda.modelo; i < modelos.length; i++) {
     try {
-      return await groqConReintento(MODELO_RESPALDO, mensajes);
-    } catch (e2) {
-      e2.message = e.message + " | " + e2.message;
-      throw e2;
+      const m = await groqConReintento(modelos[i], mensajes);
+      ronda.modelo = i;
+      return m;
+    } catch (e) {
+      if ([401, 403].includes(e.status)) throw e;
+      console.error(e.message);
+      fallas.push(e);
     }
   }
+  const e = new Error(fallas.map((f) => f.message).join(" | "));
+  e.status = fallas.every((f) => f.status === 429) ? 429 : 500;
+  throw e;
 }
 
 const lista = async (tabla, negId) => {
@@ -92,8 +97,9 @@ export default async (req) => {
     };
 
     const mensajes = [{ role: "system", content: instrucciones(neg.nombre, armarContexto(estado)) }, ...historial, { role: "user", content: pregunta }];
+    const ronda = { modelo: 0 };
     for (let vuelta = 0; vuelta <= MAX_VUELTAS; vuelta++) {
-      const m = await preguntarIA(mensajes);
+      const m = await preguntarIA(mensajes, ronda);
       if (!m.tool_calls || !m.tool_calls.length || vuelta === MAX_VUELTAS) {
         const texto = (m.content || "").trim();
         return json(200, { respuesta: texto || "No pude armar una respuesta. Probá preguntarlo de otra forma." });

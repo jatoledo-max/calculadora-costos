@@ -14,12 +14,13 @@ const estado = () => structuredClone(datos);
 test("el contexto trae los números ya calculados, igual que la ficha", () => {
   const t = armarContexto(estado());
   const lomito = t.split("\n").find((l) => l.startsWith("- Lomito completo"));
-  assert.match(lomito, /vende a \$10\.000 \(de eso \$1\.000 es envío incluido\)/);
-  assert.match(lomito, /costo total \$5\.536/);
-  assert.match(lomito, /gana \$3\.464 por unidad · margen 38%/);
-  assert.match(lomito, /\$250 packaging/);
-  assert.match(t, /- Hamburguesa completa \[Hamburguesas\]: sin precio de venta cargado.*COSTO INCOMPLETO/);
-  assert.match(t, /- Lomo: compra 1 kg a \$18\.000, rendimiento 80%, merma 5% · costo de uso \$23\.684 por kg útil/);
+  assert.match(lomito, /precio \$10\.000 \(envío incl\. \$1\.000\)/);
+  assert.match(lomito, /costo \$5\.536/);
+  assert.match(lomito, /gana \$3\.464 \(38%\)/);
+  assert.match(lomito, /pack \$250/);
+  assert.match(lomito, /sugerido \$9\.600 \(35%\)/);
+  assert.match(t, /- Hamburguesa completa \[Hamburguesas\]: SIN PRECIO.*COSTO INCOMPLETO/);
+  assert.match(t, /- Lomo: 1 kg a \$18\.000 \(rend 80%, merma 5%\) → \$23\.684\/kg útil/);
   assert.match(t, /Mayonesa casera: la tanda cuesta/);
   assert.match(t, /GASTOS FIJOS DEL MES: total \$7\.000 \(Limpieza \$7\.000\)/);
   assert.match(t, /cada producto carga \$58 de gastos fijos/);
@@ -165,11 +166,40 @@ test("función: si el modelo principal falla, usa el de respaldo; si fallan los 
     const llamar = () => handler(new Request("https://x/", { method: "POST", headers: { authorization: "Bearer t" }, body: JSON.stringify({ pregunta: "hola" }) }));
     const r = await llamar();
     assert.deepEqual(await r.json(), { respuesta: "Hola" });
-    assert.deepEqual(modelos, ["openai/gpt-oss-120b", "llama-3.3-70b-versatile"]);
+    assert.deepEqual(modelos, ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]);
     fallarTodo = true;
     const r2 = await llamar();
     assert.equal(r2.status, 500);
-    assert.match((await r2.json()).detalle, /Groq 413 \(openai\/gpt-oss-120b\).*Groq 413 \(llama-3.3-70b-versatile\)/);
+    assert.match((await r2.json()).detalle, /Groq 413 \(openai\/gpt-oss-120b\).*Groq 413 \(openai\/gpt-oss-20b\)/);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("función: si el modelo se llena entre la pregunta y la cuenta, la segunda vuelta sigue con el otro", async () => {
+  process.env.SUPABASE_URL = "https://sb.test";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "srv";
+  process.env.GROQ_API_KEY = "gk";
+  const modelos = [];
+  const original = globalThis.fetch;
+  const resp = (status, body) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  globalThis.fetch = async (url, init = {}) => {
+    const u = String(url);
+    if (u.includes("/auth/v1/user")) return resp(200, { id: "u1" });
+    if (u.includes("/negocios?")) return resp(200, [{ id: "n1", nombre: "Venutto", prueba_hasta: "2020-01-01", suscripcion_estado: "authorized" }]);
+    if (u.includes("/rest/v1/ventas?")) return resp(200, []);
+    if (u.includes("/rest/v1/")) return resp(200, []);
+    const m = JSON.parse(init.body).model;
+    modelos.push(m);
+    if (modelos.length === 1) return resp(200, { choices: [{ message: { role: "assistant", content: "", tool_calls: [{ id: "c1", type: "function", function: { name: "ventas_del_periodo", arguments: '{"desde":"2026-10-19","hasta":"2026-10-23"}' } }] } }] });
+    if (m === "openai/gpt-oss-120b") return resp(429, { error: { code: "rate_limit_exceeded" } });
+    return resp(200, { choices: [{ message: { role: "assistant", content: "No hubo ventas." } }] });
+  };
+  try {
+    const { default: handler } = await import("../netlify/functions/asistente.mjs");
+    const r = await handler(new Request("https://x/", { method: "POST", headers: { authorization: "Bearer t" }, body: JSON.stringify({ pregunta: "¿Cuánto vendí esta semana?" }) }));
+    assert.deepEqual(await r.json(), { respuesta: "No hubo ventas." });
+    assert.deepEqual(modelos, ["openai/gpt-oss-120b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]);
   } finally {
     globalThis.fetch = original;
   }

@@ -37,33 +37,33 @@ function numerosProducto(c, p) {
   };
 }
 
+// Renglones cortos a propósito: el plan gratis de Groq deja pocos tokens por minuto y cada pregunta los manda todos.
 function lineaProducto(c, p) {
   const n = numerosProducto(c, p);
-  const partes = [pesos(n.insumos) + " insumos"];
-  if (n.packaging) partes.push(pesos(n.packaging) + " packaging");
-  if (n.fijo) partes.push(pesos(n.fijo) + " gastos fijos");
+  const partes = ["ins " + pesos(n.insumos)];
+  if (n.packaging) partes.push("pack " + pesos(n.packaging));
+  if (n.fijo) partes.push("fijos " + pesos(n.fijo));
   let t = "- " + p.nombre + " [" + categoriaDe(p) + "]: ";
-  t += n.precio ? "vende a " + pesos(n.precio) + (n.envio ? " (de eso " + pesos(n.envio) + " es envío incluido)" : "") : "sin precio de venta cargado";
-  t += " · costo total " + pesos(n.costoTotal) + " (" + partes.join(" + ") + ")";
-  if (n.precio) t += " · " + (n.ganancia >= 0 ? "gana " + pesos(n.ganancia) : "PIERDE " + pesos(-n.ganancia)) + " por unidad · margen " + pct(n.margen);
-  t += " · precio sugerido " + pesos(n.sugerido) + " para " + n.margenObjetivo + "% de " + (n.fijo ? "ganancia" : "margen");
-  if (n.faltas.length) t += " · COSTO INCOMPLETO, falta: " + n.faltas.join("; ");
+  t += n.precio ? "precio " + pesos(n.precio) + (n.envio ? " (envío incl. " + pesos(n.envio) + ")" : "") : "SIN PRECIO";
+  t += " · costo " + pesos(n.costoTotal) + " (" + partes.join(", ") + ")";
+  if (n.precio) t += " · " + (n.ganancia >= 0 ? "gana " + pesos(n.ganancia) : "PIERDE " + pesos(-n.ganancia)) + " (" + pct(n.margen) + ")";
+  t += " · sugerido " + pesos(n.sugerido) + " (" + n.margenObjetivo + "%)";
+  if (n.faltas.length) t += " · COSTO INCOMPLETO: falta " + n.faltas.join("; ");
   return t;
 }
 
 function lineaInsumo(c, ins) {
   const u = ins.unidad || "u";
-  const base = UNID[u] ? UNID[u].base : "u";
   const cu = c.costoUso(ins);
   // Costo de uso por kg / litro / unidad: más fácil de leer que por gramo.
-  const uso = u === "u" ? pesos2(cu) + " por unidad" : pesos(cu * 1000) + " por " + (u === "kg" ? "kg" : "litro") + " útil (" + pesos2(cu) + " por " + base + ")";
-  let t = "- " + ins.nombre + ": compra " + (ins.cantidad || "?") + " " + u + " a " + (ins.precio === "" || ins.precio == null ? "(sin precio)" : pesos(ins.precio));
-  if (c.rendimiento(ins) < 100) t += ", rendimiento " + c.rendimiento(ins) + "%";
-  if (c.merma(ins) > 0) t += ", merma " + c.merma(ins) + "%";
-  t += " · costo de uso " + uso;
-  if (ins.packaging) t += " · packaging";
-  if (ins.actualizado) t += " · precio actualizado el " + new Date(ins.actualizado).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
-  return t;
+  const uso = u === "u" ? pesos2(cu) + "/u" : pesos(cu * 1000) + "/" + (u === "kg" ? "kg" : "l") + " útil";
+  let t = "- " + ins.nombre + ": " + (ins.cantidad || "?") + " " + u + " a " + (ins.precio === "" || ins.precio == null ? "(sin precio)" : pesos(ins.precio));
+  const extra = [];
+  if (c.rendimiento(ins) < 100) extra.push("rend " + c.rendimiento(ins) + "%");
+  if (c.merma(ins) > 0) extra.push("merma " + c.merma(ins) + "%");
+  if (ins.packaging) extra.push("pack");
+  if (extra.length) t += " (" + extra.join(", ") + ")";
+  return t + " → " + uso;
 }
 
 // Texto con todos los datos del negocio, ya calculados. Va en las instrucciones de la IA.
@@ -76,7 +76,7 @@ export function armarContexto(estado) {
   const gastos = Object.values(estado.gastos || {});
   const d = c.delivery();
   const L = [];
-  L.push("PRODUCTOS DE VENTA (" + venta.length + "):");
+  L.push("PRODUCTOS DE VENTA (" + venta.length + "). Ganancia y % son por unidad, sin el envío incluido; el sugerido es para el % objetivo de cada uno:");
   venta.forEach((p) => L.push(lineaProducto(c, p)));
   if (preps.length) {
     L.push("", "PREPARACIONES PROPIAS (se usan dentro de otros productos):");
@@ -86,7 +86,7 @@ export function armarContexto(estado) {
       L.push("- " + p.nombre + ": la tanda cuesta " + pesos(total) + (p.rinde > 0 ? " y rinde " + p.rinde + " " + u + " (" + (u === "u" ? pesos2(total / p.rinde) + " por unidad" : pesos2((total / p.rinde) * 100) + " cada 100 " + u) + ")" : " (falta cargar cuánto rinde)"));
     });
   }
-  L.push("", "INSUMOS (" + ins.length + "):");
+  L.push("", "INSUMOS (" + ins.length + "): cantidad comprada a precio → costo de uso:");
   ins.forEach((i) => L.push(lineaInsumo(c, i)));
   L.push("", "GASTOS FIJOS DEL MES: total " + pesos(c.totalFijos()) + (gastos.length ? " (" + gastos.map((g) => g.nombre + " " + pesos(g.monto)).join(", ") + ")" : " (no cargó ninguno)") + ".");
   L.push(c.unidadesMes() ? "Vende " + c.unidadesMes() + " productos por mes, así que cada producto carga " + pesos(c.fijoPorUnidad()) + " de gastos fijos (una promo cuenta como los productos que trae)." : "No cargó cuántos productos vende por mes, así que los gastos fijos no se reparten en los costos.");
@@ -98,26 +98,26 @@ export function armarContexto(estado) {
 export const HERRAMIENTAS = [
   { type: "function", function: {
     name: "ver_receta",
-    description: "Receta de un producto o preparación: cada insumo con su cantidad, su costo y cuánto pesa en el costo. Usala para preguntas sobre qué lleva un producto o qué insumo lo encarece.",
-    parameters: { type: "object", properties: { producto: { type: "string", description: "Nombre del producto, como figura en los datos" } }, required: ["producto"] },
+    description: "Receta de un producto: cada insumo con cantidad, costo y peso en el costo.",
+    parameters: { type: "object", properties: { producto: { type: "string" } }, required: ["producto"] },
   } },
   { type: "function", function: {
     name: "simular_precios_insumos",
-    description: "Simula que cambia el precio de compra de uno o más insumos y devuelve, para cada producto afectado, el costo, la ganancia y el margen antes y después, y el nuevo precio sugerido. Usala para preguntas del tipo 'si la carne sube 15%' o 'si el pan pasa a $7000'.",
+    description: "Simula subas o bajas de precio de insumos: costo, ganancia y margen antes y después de cada producto afectado, y nuevo sugerido.",
     parameters: { type: "object", properties: { cambios: { type: "array", items: { type: "object", properties: {
-      insumo: { type: "string", description: "Nombre del insumo" },
-      porcentaje: { type: "number", description: "Cuánto sube (positivo) o baja (negativo) en %, por ejemplo 15 o -10" },
-      precio_nuevo: { type: "number", description: "Nuevo precio de compra en pesos por la misma cantidad que compra hoy (en vez de porcentaje)" },
+      insumo: { type: "string" },
+      porcentaje: { type: "number", description: "% de suba (o negativo si baja)" },
+      precio_nuevo: { type: "number", description: "O el precio nuevo por la misma cantidad que compra hoy" },
     }, required: ["insumo"] } } }, required: ["cambios"] },
   } },
   { type: "function", function: {
     name: "precio_para_ganancia",
-    description: "Calcula a cuánto tendría que vender un producto para ganar un porcentaje dado (sobre el precio de venta), con la misma fórmula y redondeo de la calculadora.",
-    parameters: { type: "object", properties: { producto: { type: "string" }, porcentaje: { type: "number", description: "Ganancia buscada en %, entre 0 y 95" } }, required: ["producto", "porcentaje"] },
+    description: "A cuánto vender un producto para ganar cierto % sobre el precio.",
+    parameters: { type: "object", properties: { producto: { type: "string" }, porcentaje: { type: "number" } }, required: ["producto", "porcentaje"] },
   } },
   { type: "function", function: {
     name: "ventas_del_periodo",
-    description: "Lo que se vendió de verdad en la caja entre dos fechas (incluidas): cantidad por producto, plata que entró, costo de mercadería y ganancia antes de gastos fijos. Usala para preguntas sobre lo vendido (hoy, esta semana, este mes, qué se vende más).",
+    description: "Ventas reales de la caja entre dos fechas incluidas: por producto, total cobrado, costo y ganancia.",
     parameters: { type: "object", properties: { desde: { type: "string", description: "AAAA-MM-DD" }, hasta: { type: "string", description: "AAAA-MM-DD" } }, required: ["desde", "hasta"] },
   } },
 ];
@@ -263,18 +263,13 @@ export function hoyArgentina(ahora = new Date()) {
 export function instrucciones(nombreNegocio, contexto, ahora) {
   const h = hoyArgentina(ahora);
   return [
-    "Sos el asistente de la calculadora de costos de \"" + nombreNegocio + "\", un negocio de comida de Argentina. Hablás con el dueño.",
-    "Respondé en español rioplatense (vos), simple y corto: 2 a 6 renglones, sin vueltas. Usá listas cortas solo si ayudan. Nada de tablas.",
-    "REGLAS DE NÚMEROS (muy importantes):",
-    "- Nunca inventes precios, costos ni cantidades. Usá solo los números de los DATOS de abajo o los que devuelven las herramientas, tal cual.",
-    "- No hagas cuentas vos. Si la pregunta necesita una cuenta que no está en los datos (subas de insumos, precio para cierto margen, ventas de un período, detalle de una receta), llamá a la herramienta que corresponde.",
-    "- Si un dato no está cargado, decilo y explicá en qué pestaña cargarlo (Productos, Insumos, Gastos fijos, Delivery).",
-    "- Si un producto dice COSTO INCOMPLETO, avisá que su costo real es más alto.",
-    "- \"Margen\" y \"ganancia\" son porcentajes sobre el precio de venta, sin contar el envío incluido. Si hay gastos fijos cargados, la ganancia ya los descuenta.",
-    "- Solo hablá de este negocio y de sus costos, precios, ventas y cómo usar la calculadora. Si te preguntan otra cosa, decí amablemente que solo ayudás con eso.",
-    "Hoy es " + h.dia + " " + h.fecha + " (hora de Argentina). La semana empieza el lunes.",
+    "Sos el asistente de costos de \"" + nombreNegocio + "\", un negocio de comida argentino. Hablás con el dueño, de vos, simple y corto (2 a 6 renglones, sin tablas).",
+    "Reglas: nunca inventes ni calcules números; usá los de los DATOS o los que devuelven las herramientas, tal cual. Para subas de insumos, precio para cierto %, recetas o ventas de un período, llamá a la herramienta.",
+    "Si falta un dato, decilo y en qué pestaña se carga (Productos, Insumos, Gastos fijos, Delivery). Si dice COSTO INCOMPLETO, avisá que el costo real es más alto.",
+    "Si hay gastos fijos cargados, la ganancia ya los descuenta. Solo hablá de este negocio y de la calculadora.",
+    "Hoy es " + h.dia + " " + h.fecha + " (Argentina). La semana empieza el lunes.",
     "",
-    "DATOS DEL NEGOCIO (ya calculados por la calculadora):",
+    "DATOS:",
     contexto,
   ].join("\n");
 }
