@@ -482,19 +482,34 @@ details.cuentas > * + * { margin-top: 8px; }
 .mn-lista li { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 0.92rem; }
 .mn-json { max-height: 320px; overflow: auto; font-size: 0.75rem; background: var(--surface); border-radius: 10px; padding: 10px; white-space: pre-wrap; word-break: break-word; }
 
-/* Asistente: charla con la calculadora */
-.card.asis { display: grid; gap: 12px; }
-.asis-cab { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px; }
-.asis-cab .hint { margin: 4px 0 0; }
-.asis-cab .btn { min-height: 44px; }
-.asis-mensajes { display: flex; flex-direction: column; gap: 10px; min-height: 260px; max-height: min(60vh, 560px); overflow-y: auto; padding: 4px 2px; }
-.asis-msg { max-width: min(88%, 640px); padding: 10px 14px; border-radius: 16px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
+/* Asistente (Informes): botón flotante y panel de charla. En celular el panel ocupa casi toda la pantalla. */
+.asis-fab { position: fixed; right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 40;
+  display: inline-flex; align-items: center; gap: 8px; min-height: 56px; padding: 0 20px 0 16px; border: 0; border-radius: 999px; cursor: pointer;
+  background: var(--accent); color: var(--accent-ink); font: 700 1rem var(--f-body); box-shadow: 0 8px 24px rgba(0,0,0,.28); }
+.asis-fab:hover { filter: brightness(1.05); }
+.asis-fab[aria-expanded="true"] { display: none; }
+.asis-panel { position: fixed; z-index: 41; right: 16px; bottom: 16px; width: min(440px, calc(100vw - 32px)); height: min(640px, calc(100dvh - 32px));
+  display: grid; grid-template-rows: auto 1fr auto; gap: 10px; padding: 14px; border-radius: 20px;
+  background: var(--bg); border: 1px solid var(--glass-edge, var(--line)); box-shadow: 0 16px 48px rgba(0,0,0,.35); }
+.asis-panel[hidden] { display: none; }
+#view-informes { padding-bottom: 88px; } /* que el botón flotante no tape lo último */
+.asis-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.asis-cab h2 { font-size: 1.1rem; }
+.asis-cab .hint { margin: 2px 0 0; font-size: 0.82rem; }
+.asis-acc { display: flex; align-items: center; gap: 4px; flex: none; }
+.asis-acc .btn { min-height: 44px; padding-inline: 10px; font-size: 0.85rem; }
+.asis-cerrar { width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--tag); color: var(--ink); font-size: 1.1rem; cursor: pointer; }
+.asis-mensajes { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow-y: auto; padding: 4px 2px; }
+.asis-msg { max-width: 88%; padding: 10px 14px; border-radius: 16px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
 .asis-msg.yo { align-self: flex-end; background: var(--accent); color: var(--accent-ink); border-bottom-right-radius: 4px; }
-.asis-msg.ia { align-self: flex-start; background: var(--glass-strong, var(--surface)); border: 1px solid var(--glass-edge, var(--line)); border-bottom-left-radius: 4px; }
+.asis-msg.ia { align-self: flex-start; background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
 .asis-msg.pensando { color: var(--muted); font-style: italic; }
 .asis-msg.error { border-color: var(--bad); color: var(--bad); }
 .asis-vacio .hint { margin: 0; }
 .asis-sugeridas button { min-height: 44px; text-align: left; }
 .asis-form { display: flex; gap: 8px; align-items: stretch; }
-.asis-form textarea { flex: 1; min-width: 0; font: inherit; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); resize: vertical; min-height: 48px; }
+.asis-form textarea { flex: 1; min-width: 0; font: inherit; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); resize: none; min-height: 48px; }
 .asis-form .btn { min-height: 48px; }
+@media (max-width: 600px) {
+  .asis-panel { inset: 8px; width: auto; height: auto; border-radius: 16px; }
+}

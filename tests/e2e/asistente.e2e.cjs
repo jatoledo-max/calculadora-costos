@@ -1,4 +1,5 @@
-// Prueba de la pestaña Asistente en modo demo: preguntas sugeridas, aviso de que necesita la cuenta,
+// Prueba del asistente (botón flotante en Informes) en modo demo: solo aparece en Informes, preguntas sugeridas,
+// aviso de que necesita la cuenta,
 // y la charla (con un "preguntar" de prueba en vez de la IA) en compu y en celular.
 // Mismo uso que caja.e2e.cjs: node tests/e2e/asistente.e2e.cjs [carpeta-para-capturas] (con public/ servido en http://localhost:8765)
 const { chromium } = require(process.env.PLAYWRIGHT || "playwright");
@@ -18,15 +19,30 @@ const RESPUESTAS = {
   for (const [nombre, vista, tema] of [["escritorio", { width: 1280, height: 860 }, "light"], ["celular", { width: 390, height: 844 }, "dark"]]) {
     const ctx = await b.newContext({ serviceWorkers: "block", viewport: vista, colorScheme: tema, ...(nombre === "celular" ? { isMobile: true, hasTouch: true, deviceScaleFactor: 2 } : {}) });
     await ctx.route("**/config.js", (r) => r.fulfill({ contentType: "text/javascript", body: 'export const CONFIG = { SUPABASE_URL: "", SUPABASE_ANON_KEY: "" };' }));
-    await ctx.addInitScript((d) => { if (sessionStorage.getItem("sembrado")) return; sessionStorage.setItem("sembrado", "1"); localStorage.clear(); localStorage.setItem("costos-demo-v1", JSON.stringify(d)); localStorage.setItem("costos-tab", "asistente"); }, datos);
+    await ctx.addInitScript((d) => { if (sessionStorage.getItem("sembrado")) return; sessionStorage.setItem("sembrado", "1"); localStorage.clear(); localStorage.setItem("costos-demo-v1", JSON.stringify(d)); localStorage.setItem("costos-tab", "informes"); }, datos);
     const p = await ctx.newPage();
     const errores = [];
     p.on("pageerror", (e) => errores.push(String(e)));
     await p.goto("http://localhost:8765/");
 
-    // Abre en la pestaña Asistente con las preguntas sugeridas.
-    assert.equal(await p.getAttribute("#tab-asistente", "aria-selected"), "true");
-    assert.ok(await p.isVisible("#view-asistente"));
+    // El botón flotante está en Informes y en ninguna otra pestaña.
+    assert.ok(await p.isVisible("#asis-abrir"));
+    assert.equal(await p.isVisible("#asis-panel"), false);
+    await p.click("#tab-productos");
+    assert.equal(await p.isVisible("#asis-abrir"), false);
+    await p.click("#tab-informes");
+    if (capturas) await p.screenshot({ path: path.join(capturas, "asistente-boton-" + nombre + ".png") });
+
+    // Abre el panel con las preguntas sugeridas; Escape lo cierra y el ✕ también.
+    await p.click("#asis-abrir");
+    assert.ok(await p.isVisible("#asis-panel"));
+    assert.equal(await p.isVisible("#asis-abrir"), false);
+    await p.keyboard.press("Escape");
+    assert.equal(await p.isVisible("#asis-panel"), false);
+    await p.click("#asis-abrir");
+    await p.click("#asis-cerrar");
+    assert.equal(await p.isVisible("#asis-panel"), false);
+    await p.click("#asis-abrir");
     assert.equal(await p.locator(".asis-sugeridas button").count(), 5);
 
     // En modo demo avisa que hace falta la cuenta.
@@ -57,7 +73,7 @@ const RESPUESTAS = {
 
     if (capturas) {
       await p.evaluate(() => { const ms = document.querySelectorAll(".asis-msg"); ms[ms.length - 1].remove(); ms[ms.length - 2].remove(); });
-      await p.screenshot({ path: path.join(capturas, "asistente-" + nombre + ".png"), fullPage: nombre === "celular" });
+      await p.screenshot({ path: path.join(capturas, "asistente-" + nombre + ".png") });
     }
 
     // Si falla, la pregunta vuelve al campo y se muestra el error.

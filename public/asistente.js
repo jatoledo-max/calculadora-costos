@@ -1,4 +1,4 @@
-// Pestaña Asistente: el dueño le pregunta cosas a la calculadora con sus propios datos.
+// Asistente (botón flotante en Informes): el dueño le pregunta cosas a la calculadora con sus propios datos.
 // Las cuentas las hace el servidor con costos.js (netlify/lib/asistente.mjs); la IA solo las explica.
 // "preguntar(pregunta, historial)" → texto de la respuesta. En modo demo no hay (necesita la cuenta).
 
@@ -23,7 +23,7 @@ export function iniciarAsistente(preguntar) {
     d.className = "asis-msg " + (rol === "usuario" ? "yo" : "ia") + (clase ? " " + clase : "");
     d.textContent = texto;
     lista.appendChild(d);
-    d.scrollIntoView({ block: "end", behavior: "smooth" });
+    lista.scrollTop = lista.scrollHeight;
     return d;
   }
   function render() {
@@ -72,6 +72,17 @@ export function iniciarAsistente(preguntar) {
       campo.focus();
     }
   }
+
+  // Abrir y cerrar el panel. Escape lo cierra; al cerrar, el foco vuelve al botón.
+  const fab = $("#asis-abrir"), panel = $("#asis-panel");
+  const abrir = (si) => {
+    panel.hidden = !si;
+    fab.setAttribute("aria-expanded", si ? "true" : "false");
+    if (si) { lista.scrollTop = lista.scrollHeight; campo.focus(); } else fab.focus();
+  };
+  fab.onclick = () => abrir(true);
+  $("#asis-cerrar").onclick = () => abrir(false);
+  panel.addEventListener("keydown", (e) => { if (e.key === "Escape") abrir(false); });
 
   form.onsubmit = (e) => { e.preventDefault(); enviar(campo.value); };
   // Enter manda; Shift+Enter hace un renglón nuevo.

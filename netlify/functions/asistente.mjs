@@ -1,4 +1,4 @@
-// El navegador llama acá cuando el dueño le hace una pregunta al asistente (pestaña Asistente).
+// El navegador llama acá cuando el dueño le hace una pregunta al asistente (botón "Preguntar" en Informes).
 // Lee los datos del negocio de ese usuario (solo los suyos), los calcula con costos.js y le pregunta a Groq.
 // Variables de entorno: GROQ_API_KEY (gratis en console.groq.com) y, opcional, GROQ_MODEL.
 import { env, json, supabaseAdmin, usuarioDelToken } from "../lib/comun.mjs";
