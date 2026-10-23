@@ -20,19 +20,39 @@ async function groq(modelo, mensajes) {
     }),
   });
   const body = await r.json().catch(() => ({}));
-  if (!r.ok) { const e = new Error("Groq " + r.status + ": " + JSON.stringify(body.error || body)); e.status = r.status; throw e; }
+  if (!r.ok) {
+    const e = new Error("Groq " + r.status + " (" + modelo + "): " + ((body.error && (body.error.code || body.error.message)) || JSON.stringify(body)).toString().slice(0, 200));
+    e.status = r.status; e.codigo = body.error && body.error.code;
+    throw e;
+  }
   return body.choices[0].message;
 }
 
-// Pide al modelo principal y, si está saturado, al de respaldo.
+// Groq a veces devuelve 400 "tool_use_failed" cuando el modelo arma mal un pedido de cuenta: se reintenta una vez.
+async function groqConReintento(modelo, mensajes) {
+  try {
+    return await groq(modelo, mensajes);
+  } catch (e) {
+    if (e.codigo !== "tool_use_failed") throw e;
+    console.error(e.message, "→ reintento");
+    return groq(modelo, mensajes);
+  }
+}
+
+// Pide al modelo principal y, si falla por cualquier cosa que no sea la clave, al de respaldo.
 async function preguntarIA(mensajes) {
   const principal = process.env.GROQ_MODEL || MODELO;
   try {
-    return await groq(principal, mensajes);
+    return await groqConReintento(principal, mensajes);
   } catch (e) {
-    if (![429, 498, 500, 502, 503, 404].includes(e.status) || principal === MODELO_RESPALDO) throw e;
+    if ([401, 403].includes(e.status) || principal === MODELO_RESPALDO) throw e;
     console.error(e.message, "→ uso", MODELO_RESPALDO);
-    return groq(MODELO_RESPALDO, mensajes);
+    try {
+      return await groqConReintento(MODELO_RESPALDO, mensajes);
+    } catch (e2) {
+      e2.message = e.message + " | " + e2.message;
+      throw e2;
+    }
   }
 }
 
@@ -88,8 +108,11 @@ export default async (req) => {
     }
   } catch (e) {
     console.error(e);
-    if (e.status === 429) return json(429, { error: "El asistente gratis llegó a su límite por ahora. Probá de nuevo en un rato." });
+    // "detalle" es el motivo técnico corto (sin claves), para poder ver qué pasó desde la pantalla.
+    const detalle = String(e.message || e).slice(0, 400);
+    if ([401, 403].includes(e.status)) return json(502, { error: "La clave de Groq no funciona. Revisá GROQ_API_KEY en Netlify.", detalle });
+    if (e.status === 429) return json(429, { error: "El asistente gratis llegó a su límite por ahora. Probá de nuevo en un rato.", detalle });
     if (/GROQ_API_KEY/.test(e.message)) return json(503, { error: "El asistente todavía no está configurado." });
-    return json(500, { error: "El asistente no pudo contestar. Probá de nuevo en un rato." });
+    return json(500, { error: "El asistente no pudo contestar. Probá de nuevo en un rato.", detalle });
   }
 };

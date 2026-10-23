@@ -141,3 +141,36 @@ test("función: lee solo el negocio del usuario, pide la cuenta y devuelve la re
     globalThis.fetch = original;
   }
 });
+
+test("función: si el modelo principal falla, usa el de respaldo; si fallan los dos, devuelve el detalle", async () => {
+  process.env.SUPABASE_URL = "https://sb.test";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "srv";
+  process.env.GROQ_API_KEY = "gk";
+  const modelos = [];
+  let fallarTodo = false;
+  const original = globalThis.fetch;
+  const resp = (status, body) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  globalThis.fetch = async (url, init = {}) => {
+    const u = String(url);
+    if (u.includes("/auth/v1/user")) return resp(200, { id: "u1" });
+    if (u.includes("/negocios?")) return resp(200, [{ id: "n1", nombre: "Venutto", prueba_hasta: "2020-01-01", suscripcion_estado: "authorized" }]);
+    if (u.includes("/rest/v1/")) return resp(200, []);
+    const m = JSON.parse(init.body).model;
+    modelos.push(m);
+    if (fallarTodo || m === "openai/gpt-oss-120b") return resp(413, { error: { message: "Request too large", code: "rate_limit_exceeded" } });
+    return resp(200, { choices: [{ message: { role: "assistant", content: "Hola" } }] });
+  };
+  try {
+    const { default: handler } = await import("../netlify/functions/asistente.mjs");
+    const llamar = () => handler(new Request("https://x/", { method: "POST", headers: { authorization: "Bearer t" }, body: JSON.stringify({ pregunta: "hola" }) }));
+    const r = await llamar();
+    assert.deepEqual(await r.json(), { respuesta: "Hola" });
+    assert.deepEqual(modelos, ["openai/gpt-oss-120b", "llama-3.3-70b-versatile"]);
+    fallarTodo = true;
+    const r2 = await llamar();
+    assert.equal(r2.status, 500);
+    assert.match((await r2.json()).detalle, /Groq 413 \(openai\/gpt-oss-120b\).*Groq 413 \(llama-3.3-70b-versatile\)/);
+  } finally {
+    globalThis.fetch = original;
+  }
+});

@@ -106,7 +106,7 @@ export function preguntarConCuenta(supabase) {
       throw new Error(navigator.onLine === false ? "Sin internet. Conectate y probá de nuevo." : "No se pudo conectar con el asistente.");
     }
     const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.respuesta) throw new Error(j.error || "No se pudo contestar. Probá de nuevo.");
+    if (!r.ok || !j.respuesta) throw new Error((j.error || "No se pudo contestar. Probá de nuevo.") + (j.detalle ? "\n\nDetalle: " + j.detalle : r.ok ? "" : "\n\nDetalle: error " + r.status));
     return j.respuesta;
   };
 }
