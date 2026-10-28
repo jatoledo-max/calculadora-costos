@@ -141,7 +141,11 @@ const capturas = process.argv[2];
   assert.match(await p.textContent("#caja-resumen"), /¿A dónde fue la plata de las ventas\?De cada \$ 100 que vendiste te quedaron \$ \d+\./);
   assert.match(await p.textContent("#caja-resumen"), /Qué se vendió más/);
   assert.match(await p.textContent("#caja-resumen"), /Cómo te pagaron/);
-  assert.equal(await kpi("Resultado estimado"), esperado.resultado);
+  assert.equal(await kpi("Ganancia total"), esperado.resultado);
+  // La ganancia desde la apertura también va arriba, en verde, mientras la caja está abierta.
+  assert.equal(await p.textContent("#caja-ganancia .v"), esperado.resultado);
+  assert.match(await p.textContent("#caja-ganancia .k"), /Ganancia hasta ahora/);
+  if (capturas) { await p.locator("#caja-estado").scrollIntoViewIfNeeded(); await paso("6-ganancia-arriba"); }
   assert.match(await p.textContent(".res-tabla"), new RegExp(esperado.unidades + " productos"));
   assert.doesNotMatch(await p.textContent(".caja-resumen"), /Rentabilidad provisional/); // todo lo vendido tiene receta completa
   if (capturas) { await p.locator("#caja-resumen").scrollIntoViewIfNeeded(); await paso("5-resumen"); }

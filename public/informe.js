@@ -67,7 +67,8 @@ export function pintarInforme(box, r, { cerrada = false, dias = null } = {}) {
     kpis.appendChild(d);
   };
   kpi("Ventas netas", fmtPesos(Math.round(r.ventas_netas)), r.ventas + (r.ventas === 1 ? " venta" : " ventas") + (periodo ? " en " + r.cajas + (r.cajas === 1 ? " caja" : " cajas") : ""));
-  kpi("Resultado estimado", fmtPesos(Math.round(r.resultado_estimado)), r.margen_pct != null ? "margen bruto " + r.margen_pct.toLocaleString("es-AR") + "%" : "después de gastos", "hl");
+  const gan = Math.round(r.resultado_estimado);
+  kpi(gan < 0 ? "Pérdida total" : "Ganancia total", fmtPesos(gan), r.margen_pct != null ? "estimada · margen bruto " + r.margen_pct.toLocaleString("es-AR") + "%" : "estimada, después de gastos", gan < 0 ? "perdida" : "ganancia");
   if (periodo) {
     const dif = Number(r.diferencia_efectivo);
     kpi("Diferencias de caja", dif ? fmtPesos(Math.round(dif)) : "$ 0",

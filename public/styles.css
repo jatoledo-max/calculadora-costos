@@ -514,3 +514,14 @@ details.cuentas > * + * { margin-top: 8px; }
 @media (max-width: 600px) {
   .asis-panel { inset: 8px 8px calc(64px + env(safe-area-inset-bottom)); width: auto; height: auto; border-radius: 16px; }
 }
+
+/* Ganancia total de la caja (desde la apertura): verde; roja si da pérdida. */
+.caja-ganancia { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 10px; padding: 10px 14px; border-radius: 12px; background: color-mix(in srgb, var(--good) 14%, transparent); border: 1px solid color-mix(in srgb, var(--good) 45%, transparent); }
+.caja-ganancia .k { font-size: 0.8rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; color: var(--good); }
+.caja-ganancia .v { font-size: 1.6rem; font-weight: 800; color: var(--good); }
+.caja-ganancia.neg { background: color-mix(in srgb, var(--bad) 12%, transparent); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+.caja-ganancia.neg .k, .caja-ganancia.neg .v { color: var(--bad); }
+.res-kpi.ganancia { background: color-mix(in srgb, var(--good) 14%, var(--glass-strong)); border-color: color-mix(in srgb, var(--good) 55%, transparent); }
+.res-kpi.ganancia .k, .res-kpi.ganancia .v { color: var(--good); font-weight: 800; }
+.res-kpi.perdida { border-color: color-mix(in srgb, var(--bad) 55%, transparent); }
+.res-kpi.perdida .k, .res-kpi.perdida .v { color: var(--bad); }

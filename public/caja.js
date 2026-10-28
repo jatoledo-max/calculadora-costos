@@ -279,10 +279,22 @@ export function iniciarCaja(calc, backend) {
       e.innerHTML = '<span class="punto" aria-hidden="true"></span><b></b><span></span>';
       e.querySelector("b").textContent = "Caja " + c.numero + " abierta";
       e.querySelector("span:last-child").textContent = " desde las " + hora(c.abierta_en) + " · " + vs.length + (vs.length === 1 ? " venta" : " ventas") + " · " + fmtPesos(tot / 100);
+      gananciaEnEstado(e, "Ganancia hasta ahora");
     } else {
       e.classList.add("cerrada");
       e.textContent = c ? "Caja " + c.numero + " cerrada" + (c.cerrada_en ? " a las " + hora(c.cerrada_en) : "") : "Caja cerrada";
+      if (c && c.estado === "cerrada" && st.resumen && st.resumen.efectivo_contado != null) gananciaEnEstado(e, "Ganancia de la caja");
     }
+  }
+
+  // Ganancia total desde la apertura (resultado estimado de resumen_caja), en verde; en rojo si es pérdida.
+  function gananciaEnEstado(e, texto) {
+    if (!st.resumen) return;
+    const g = Math.round(Number(st.resumen.resultado_estimado));
+    const d = el("div", "caja-ganancia" + (g < 0 ? " neg" : ""));
+    d.id = "caja-ganancia";
+    d.append(el("span", "k", g < 0 ? texto.replace("Ganancia", "Pérdida") : texto), el("span", "v num", fmtPesos(g)));
+    e.appendChild(d);
   }
 
   function renderAbrir() {
