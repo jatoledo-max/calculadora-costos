@@ -28,6 +28,7 @@
     <button class="btn primary" type="submit" id="login-btn">Entrar</button>
     <button class="btn ghost" type="button" id="login-toggle">¿No tenés cuenta? Creala gratis</button>
     <button class="btn ghost" type="button" id="login-olvide">Olvidé mi contraseña</button>
+    <p class="hint" id="login-acepto" hidden>Al crear la cuenta aceptás los <a href="terminos.html">Términos</a> y la <a href="privacidad.html">Política de privacidad</a>.</p>
     <p id="login-msg" class="hint" role="status"></p>
   </form>
 </div>
@@ -243,11 +244,24 @@
     <div class="card" style="max-width:560px">
       <h3>Suscripción</h3>
       <p id="sub-estado" class="hint"></p>
-      <button class="btn" id="btn-salir" type="button">Cerrar sesión</button>
+      <div class="sub-acciones">
+        <button class="btn" id="btn-baja" type="button" hidden>Dar de baja la suscripción</button>
+        <button class="btn" id="btn-salir" type="button">Cerrar sesión</button>
+      </div>
+      <p id="baja-msg" class="hint" role="status"></p>
     </div>
   </section>
   </div>
 </div>
+
+<!-- Pie: ayuda y páginas legales (el botón de arrepentimiento tiene que estar a la vista en todas las pantallas) -->
+<footer class="pie" id="pie">
+  <a data-wa="Hola, necesito ayuda con CalculadoraDeGananciasMV" href="#">Ayuda por WhatsApp</a>
+  <a data-mail="Ayuda con CalculadoraDeGananciasMV" href="#">Ayuda por mail</a>
+  <a href="terminos.html">Términos</a>
+  <a href="privacidad.html">Privacidad</a>
+  <a href="arrepentimiento.html">Botón de arrepentimiento</a>
+</footer>
 
 <script type="module" src="app.js"></script>
 </body>

@@ -7,6 +7,7 @@ import { iniciarCopias } from "./copia.js";
 import { iniciarMenuNegocio } from "./menu.js";
 import { subirFotoSupabase, subirFotoDemo } from "./fotos.js";
 import { iniciarAsistente, preguntarConCuenta } from "./asistente.js";
+import { completarContacto } from "./legal.js";
 
 const $ = (s) => document.querySelector(s);
 const PANTALLAS = ["cargando", "login", "alta", "pago", "app"];
@@ -53,6 +54,8 @@ function textoSuscripcion(neg) {
   if (!neg.prueba_hasta) return "Modo demo.";
   if (neg.suscripcion_estado === "authorized") return "Suscripción activa. Gracias por confiar.";
   const hasta = new Date(neg.prueba_hasta);
+  if (neg.suscripcion_estado === "cancelled" && hasta > new Date())
+    return "Diste de baja la suscripción. Podés seguir usando la app hasta el " + hasta.toLocaleDateString("es-AR") + ".";
   const dias = Math.ceil((hasta - Date.now()) / 86400000);
   return dias > 0 ? "Prueba gratis: te quedan " + dias + (dias === 1 ? " día" : " días") + " (hasta el " + hasta.toLocaleDateString("es-AR") + ")." : "Tu prueba gratis terminó.";
 }
@@ -111,6 +114,7 @@ async function arrancar() {
     $("#login-btn").textContent = registrando ? "Crear cuenta" : "Entrar";
     $("#login-toggle").textContent = registrando ? "Ya tengo cuenta" : "¿No tenés cuenta? Creala gratis";
     $("#login-pass").autocomplete = registrando ? "new-password" : "current-password";
+    $("#login-acepto").hidden = !registrando;
   };
   $("#login-olvide").onclick = async () => {
     const email = $("#login-email").value.trim();
@@ -179,6 +183,7 @@ async function arrancar() {
       b.onclick = () => abrirPago(session, true);
       $("#sub-estado").after(b);
     }
+    iniciarBaja(session, neg);
     mostrar("app");
     const calc = iniciarCalculadora(supabaseStore(supabase, neg.id), { subirFoto: subirFotoSupabase(supabase, neg.id) });
     const caja = supabaseCaja(supabase);
@@ -205,6 +210,26 @@ async function arrancar() {
     $("#btn-volver-pago").onclick = () => mostrar("app");
     $("#btn-suscribir").onclick = () => suscribir(session);
     mostrar("pago");
+  }
+
+  // Dar de baja: cancela la suscripción en Mercado Pago (ver netlify/functions/cancelar-suscripcion.mjs).
+  function iniciarBaja(session, neg) {
+    $("#btn-baja").hidden = !(neg.mp_preapproval_id && ["authorized", "pending", "paused"].includes(neg.suscripcion_estado));
+    $("#btn-baja").onclick = async () => {
+      if (!confirm("¿Dar de baja la suscripción? No se te cobra más. Seguís usando la app hasta el final del mes que ya pagaste.")) return;
+      $("#baja-msg").textContent = "Dando de baja…";
+      try {
+        const r = await fetch("/.netlify/functions/cancelar-suscripcion", { method: "POST", headers: { Authorization: "Bearer " + session.access_token } });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || "error");
+        Object.assign(neg, j.negocio || { suscripcion_estado: "cancelled" });
+        $("#sub-estado").textContent = textoSuscripcion(neg);
+        $("#btn-baja").hidden = true;
+        $("#baja-msg").textContent = "Listo, la suscripción quedó dada de baja. Si fue dentro de los 10 días de contratarla y querés que te devolvamos el dinero, usá el Botón de arrepentimiento del pie.";
+      } catch (e) {
+        $("#baja-msg").textContent = (e.message && e.message !== "error" ? e.message : "No se pudo dar de baja.") + " Escribinos por WhatsApp y lo hacemos nosotros.";
+      }
+    };
   }
 
   async function suscribir(session) {
@@ -254,4 +279,5 @@ function iniciarCelular() {
 }
 
 iniciarCelular();
+completarContacto();
 arrancar();

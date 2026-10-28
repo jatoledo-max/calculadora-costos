@@ -525,3 +525,25 @@ details.cuentas > * + * { margin-top: 8px; }
 .res-kpi.ganancia .k, .res-kpi.ganancia .v { color: var(--good); font-weight: 800; }
 .res-kpi.perdida { border-color: color-mix(in srgb, var(--bad) 55%, transparent); }
 .res-kpi.perdida .k, .res-kpi.perdida .v { color: var(--bad); }
+
+/* Pie con ayuda y páginas legales, y las páginas de Términos, Privacidad y Arrepentimiento. */
+.pie { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 18px; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); font-size: 0.85rem; border-top: 1px solid var(--line); }
+.pie a { color: var(--muted); text-decoration: underline; text-underline-offset: 3px; min-height: 32px; display: inline-flex; align-items: center; }
+.pie a:hover { color: var(--accent-text); }
+.pie a[hidden] { display: none; }
+body:has(#pantalla-cargando:not([hidden])) .pie { display: none; }
+.centro { min-height: calc(100vh - 70px); }
+.legal { max-width: 760px; padding-block: 20px 40px; }
+.legal h2 { font-size: 1.6rem; margin-bottom: 4px; }
+.legal h3 { margin-top: 22px; margin-bottom: 4px; }
+.legal p, .legal li { max-width: 68ch; }
+.legal a { color: var(--accent-text); }
+.legal-volver { color: inherit; text-decoration: none; }
+.legal-form { display: grid; gap: 10px; max-width: 460px; }
+.legal-form .btn { display: inline-flex; justify-content: center; align-items: center; min-height: 44px; text-decoration: none; font: 600 0.92rem var(--f-body); border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.legal-form .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.legal-form .btn[hidden] { display: none; }
+.sub-acciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.sub-acciones .btn { min-height: 44px; }
+#btn-baja { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
+.auth a { color: var(--accent-text); }
