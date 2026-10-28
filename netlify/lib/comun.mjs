@@ -39,3 +39,15 @@ export async function mercadoPago(path, init = {}) {
 }
 
 export { env };
+
+// Al cancelar o pausar una suscripción que estaba activa (ya pagó), el negocio sigue usando la app
+// hasta la fecha del próximo cobro, que es hasta donde pagó. Usamos prueba_hasta para eso.
+// Devuelve la nueva fecha (ISO) o null si no corresponde extender nada.
+export function pagadoHasta(neg, sus, ahora = new Date()) {
+  if (neg.suscripcion_estado !== "authorized" || !sus || !sus.next_payment_date) return null;
+  const proximo = new Date(sus.next_payment_date);
+  if (isNaN(proximo) || proximo <= ahora) return null;
+  if (proximo - ahora > 35 * 86400000) return null; // más de un mes: dato raro, no regalamos tiempo
+  if (neg.prueba_hasta && new Date(neg.prueba_hasta) >= proximo) return null;
+  return proximo.toISOString();
+}

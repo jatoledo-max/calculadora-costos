@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Botón de arrepentimiento · CalculadoraDeGananciasMV</title>
+<meta name="theme-color" content="#131313">
+<link rel="icon" type="image/png" sizes="32x32" href="iconos/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;700&family=Public+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="styles.css">
+<script>try { const t = localStorage.getItem("costos-tema"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+</head>
+<body>
+<div class="brand"><header class="top"><h1><a class="legal-volver" href="./">CalculadoraDeGananciasMV</a></h1></header></div>
+<main class="wrap legal">
+<h2>Botón de arrepentimiento</h2>
+<p>Si contrataste la suscripción hace <strong>10 días corridos o menos</strong>, podés arrepentirte sin dar motivos y sin costo. Te devolvemos todo lo cobrado por el mismo medio de pago (Ley 24.240, art. 34, y Resolución 424/2020).</p>
+
+<div class="card legal-form">
+  <h3>Pedir la revocación</h3>
+  <label class="f">Email de tu cuenta<input id="arr-email" type="email" autocomplete="email" required></label>
+  <label class="f">Nombre del negocio<input id="arr-negocio" maxlength="80"></label>
+  <a class="btn primary" id="arr-wa" href="#">Enviar por WhatsApp</a>
+  <a class="btn" id="arr-mail" href="#" hidden>Enviar por mail</a>
+  <p class="hint" id="arr-msg" role="status">Te contestamos dentro de las 24 horas con un código de trámite, damos de baja la suscripción y te devolvemos el dinero.</p>
+</div>
+
+<h3>¿Querés darte de baja después de los 10 días?</h3>
+<p>Entrá a la app y tocá <strong>Mi negocio → Suscripción → Dar de baja</strong>. No se cobra más y seguís usando la app hasta el final del mes pagado. Si no podés entrar, escribinos y lo hacemos nosotros.</p>
+
+<script type="module">
+  import { CONFIG } from "./config.js";
+  import { linkWhatsApp } from "./legal.js";
+  const texto = () => "Quiero ejercer mi derecho de arrepentimiento de CalculadoraDeGananciasMV.\nEmail de la cuenta: " + document.getElementById("arr-email").value.trim()
+    + "\nNegocio: " + (document.getElementById("arr-negocio").value.trim() || "-");
+  const valido = () => {
+    const ok = document.getElementById("arr-email").checkValidity() && document.getElementById("arr-email").value.trim();
+    if (!ok) document.getElementById("arr-msg").textContent = "Escribí el email de tu cuenta para que podamos encontrarla.";
+    return ok;
+  };
+  const wa = document.getElementById("arr-wa"), mail = document.getElementById("arr-mail");
+  wa.onclick = (e) => { e.preventDefault(); if (valido()) window.open(linkWhatsApp(texto()), "_blank", "noopener"); };
+  if (!CONFIG.SOPORTE_WHATSAPP) wa.hidden = true;
+  if (CONFIG.SOPORTE_EMAIL) {
+    mail.hidden = false;
+    mail.onclick = (e) => { e.preventDefault(); if (valido()) location.href = "mailto:" + CONFIG.SOPORTE_EMAIL + "?subject=" + encodeURIComponent("Arrepentimiento") + "&body=" + encodeURIComponent(texto()); };
+  }
+</script>
+</main>
+<footer class="pie">
+  <a data-wa="Hola, necesito ayuda con CalculadoraDeGananciasMV" href="#">Ayuda por WhatsApp</a>
+  <a href="terminos.html">Términos</a>
+  <a href="privacidad.html">Privacidad</a>
+  <a href="arrepentimiento.html">Botón de arrepentimiento</a>
+</footer>
+<script type="module">import { completarContacto } from "./legal.js"; completarContacto();</script>
+</body>
+</html>

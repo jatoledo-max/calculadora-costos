@@ -2,7 +2,7 @@
 // No confiamos en el contenido del aviso: con el id volvemos a pedir la suscripción a Mercado Pago
 // y guardamos su estado en el negocio (external_reference = id del negocio).
 import crypto from "node:crypto";
-import { json, supabaseAdmin, mercadoPago } from "../lib/comun.mjs";
+import { json, supabaseAdmin, mercadoPago, pagadoHasta } from "../lib/comun.mjs";
 
 // Firma opcional: si configurás MP_WEBHOOK_SECRET (Mercado Pago > Tus integraciones > Webhooks), se verifica.
 function firmaValida(req, dataId) {
@@ -25,10 +25,18 @@ export default async (req) => {
   try {
     const sus = await mercadoPago("/preapproval/" + encodeURIComponent(id));
     if (!sus.external_reference) return json(200, { ignorado: true });
-    await supabaseAdmin("/rest/v1/negocios?id=eq." + encodeURIComponent(sus.external_reference), {
+    const ruta = "/rest/v1/negocios?id=eq." + encodeURIComponent(sus.external_reference);
+    const cambios = { suscripcion_estado: sus.status, mp_preapproval_id: sus.id };
+    // Si la cancelaron desde Mercado Pago, que igual pueda usar la app hasta el final del mes pagado.
+    if (sus.status === "cancelled" || sus.status === "paused") {
+      const [neg] = await supabaseAdmin(ruta + "&select=prueba_hasta,suscripcion_estado");
+      const hasta = neg && pagadoHasta(neg, sus);
+      if (hasta) cambios.prueba_hasta = hasta;
+    }
+    await supabaseAdmin(ruta, {
       method: "PATCH",
       headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ suscripcion_estado: sus.status, mp_preapproval_id: sus.id }),
+      body: JSON.stringify(cambios),
     });
     return json(200, { ok: true });
   } catch (e) {
