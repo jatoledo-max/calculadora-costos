@@ -27,8 +27,8 @@ const capturas = process.argv[2];
   const estado = () => p.textContent("#caja-estado");
   const msg = () => p.textContent(".caja-msg");
   const total = () => p.textContent("#caja-total-v");
-  const prod = (nombre) => p.locator(".pbtn", { hasText: nombre });
-  const cat = (nombre) => p.locator(".chip-cat", { hasText: nombre }).click();
+  const prod = (nombre) => p.locator("#view-caja .pbtn", { hasText: nombre });
+  const cat = (nombre) => p.locator("#view-caja .chip-cat", { hasText: nombre }).click();
   const ventasGuardadas = () => p.evaluate(() => JSON.parse(localStorage.getItem("caja-demo-v1") || '{"ventas":[]}').ventas);
   const paso = async (nombre) => { if (capturas) await p.screenshot({ path: `${capturas}/${nombre}.png` }); };
 
@@ -47,7 +47,7 @@ const capturas = process.argv[2];
   await cat("Lomitos");
   assert.match(await p.textContent(".caja-prods"), /Lomito completo/);
   await prod("Lomito completo").click();
-  await p.locator(".pbtn.op", { hasText: "Común" }).click();
+  await p.locator("#view-caja .pbtn.op", { hasText: "Común" }).click();
   await cat("Extras");
   await prod("Pote de mayonesa").click();
   assert.equal(await total(), "$ 10.500");
@@ -60,7 +60,7 @@ const capturas = process.argv[2];
   // 3. Promo con delivery y $1.000 de cargo, pago dividido: $8.000 en efectivo y el resto por transferencia.
   await cat("Promos");
   await prod("Promo 3 lomitos").click();
-  await p.locator(".fila-chips .chip", { hasText: "Otro cargo" }).click();
+  await p.locator("#view-caja .fila-chips .chip", { hasText: "Otro cargo" }).click();
   await p.fill("#caja-envio-otro", "1000");
   assert.equal(await total(), "$ 28.000");
   await p.click(".pago.dividir");
@@ -76,8 +76,8 @@ const capturas = process.argv[2];
   // 4. Dos lomitos con pan árabe (+$100 cada uno), por transferencia.
   await cat("Lomitos");
   await prod("Lomito completo").click();
-  await p.locator(".pbtn.op", { hasText: "Pan árabe" }).click();
-  await p.locator(".linea .qty[aria-label='Uno más']").click();
+  await p.locator("#view-caja .pbtn.op", { hasText: "Pan árabe" }).click();
+  await p.locator("#view-caja .linea .qty[aria-label='Uno más']").click();
   assert.equal(await total(), "$ 20.200");
   await p.click(".pago.transferencia");
   await p.waitForFunction(() => /Venta 3 guardada/.test(document.querySelector(".caja-msg")?.textContent || ""));
@@ -85,12 +85,12 @@ const capturas = process.argv[2];
 
   // 5. Descuento: sin motivo no deja cobrar; con motivo sí.
   await prod("Lomito simple").click();
-  await p.locator(".fila-chips .chip", { hasText: "Descuento" }).click();
-  await p.fill(".fila-chips input.n", "800");
+  await p.locator("#view-caja .fila-chips .chip", { hasText: "Descuento" }).click();
+  await p.fill("#view-caja .fila-chips input.n", "800");
   assert.equal(await total(), "$ 7.200");
   await p.click(".pago.efectivo");
   assert.match(await msg(), /motivo del descuento/);
-  await p.fill(".fila-chips input.motivo", "Cliente frecuente");
+  await p.fill("#view-caja .fila-chips input.motivo", "Cliente frecuente");
   await p.click(".pago.efectivo");
   await p.waitForFunction(() => /Venta 4 guardada/.test(document.querySelector(".caja-msg")?.textContent || ""));
 
@@ -108,7 +108,7 @@ const capturas = process.argv[2];
   assert.equal(await prod("Hamburguesa completa").isDisabled(), true);
   await cat("Lomitos");
   await prod("Lomito simple").click();
-  await p.locator(".linea button[aria-label='Quitar']").click();
+  await p.locator("#view-caja .linea button[aria-label='Quitar']").click();
   assert.match(await p.textContent("#caja-carrito"), /Tocá un producto/);
 
   // 8. Listado de ventas y estado.

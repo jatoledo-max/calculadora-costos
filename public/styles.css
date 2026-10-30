@@ -547,3 +547,53 @@ body:has(#pantalla-cargando:not([hidden])) .pie { display: none; }
 .sub-acciones .btn { min-height: 44px; }
 #btn-baja { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
 .auth a { color: var(--accent-text); }
+
+/* Tickets de pedido (pestaña Tickets) y la página que abre el cliente (ticket.html). */
+a.btn { display: inline-flex; justify-content: center; align-items: center; min-height: 40px; text-decoration: none; font: 600 0.88rem var(--f-body); border-radius: 12px; padding: 8px 14px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+a.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); box-shadow: 0 6px 18px rgba(242,116,5,.4); }
+a.btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+#view-tickets .ins-head { margin-top: 14px; }
+.tk-extra { display: grid; gap: 6px; }
+.tk-extra input { width: 100%; }
+.tk-corrigiendo { display: grid; gap: 4px; padding: 10px 12px; border-radius: 12px; border: 1px dashed var(--accent); background: var(--accent-soft); font-size: 0.9rem; }
+.tk-corrigiendo .btn { justify-self: start; }
+.tk-listo { display: grid; gap: 8px; padding: 12px; border-radius: 14px; background: color-mix(in srgb, var(--good) 16%, var(--surface)); border: 1px solid var(--good); }
+.tk-listo .hint { margin: 0; }
+.tk-listo > .btn.ghost { justify-self: start; }
+.tk-acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+a.btn.tk-wa.primary { flex: 1 1 100%; min-height: 52px; font-size: 1.05rem; background: #1f9d55; border-color: #1f9d55; color: #fff; box-shadow: 0 6px 18px rgba(31,157,85,.35); }
+.tk-lista-cab { display: flex; justify-content: space-between; align-items: center; }
+#tk-lista { margin-top: 18px; }
+.tk-item .md { justify-self: start; }
+.tk-item .tk-respuesta { grid-column: 1 / -1; margin: 2px 0 0; padding: 6px 10px; border-radius: 10px; background: var(--accent-soft); font-weight: 600; }
+.tk-acc { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.tk-acc .btn { min-height: 38px; padding: 6px 12px; font-size: 0.82rem; }
+.tk-estado { font-weight: 700; }
+.tk-aceptado .tk-estado { background: color-mix(in srgb, var(--good) 20%, var(--surface)); color: var(--good); }
+.tk-cambio .tk-estado { background: var(--accent-soft); color: var(--accent-text); }
+.tk-rechazado .tk-estado { background: color-mix(in srgb, var(--bad) 14%, var(--surface)); color: var(--bad); }
+.tk-rechazado { opacity: .7; }
+
+body.tkc { margin: 0; min-height: 100vh; }
+.tkc-wrap { max-width: 520px; margin: 0 auto; padding: 20px 16px 8px; display: grid; gap: 14px; }
+.tkc-cab { display: flex; align-items: center; gap: 12px; }
+.tkc-cab img { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 2px var(--accent); }
+.tkc-cab h1 { font-size: 1.5rem; }
+.tkc-card { padding: 18px; display: grid; gap: 12px; }
+.tkc-card h2 { font-size: 1.15rem; }
+.tkc-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.tkc-items li { display: grid; grid-template-columns: 2.4em minmax(0, 1fr) auto; gap: 8px; align-items: baseline; }
+.tkc-items .c { font-weight: 700; color: var(--accent-text); }
+.tkc-items .tkc-envio { color: var(--muted); border-top: 1px dashed var(--line); padding-top: 8px; }
+.tkc-nota { margin: 0; padding: 8px 12px; border-radius: 12px; background: var(--glass-strong); border: 1px solid var(--glass-edge); white-space: pre-wrap; }
+.tkc-pago { display: grid; gap: 6px; font-size: 0.92rem; }
+.tkc-pago p { margin: 0; }
+.tkc-alias { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tkc-resp .btn.grande { width: 100%; }
+.tkc-resp h2 { font-size: 1.3rem; }
+.tkc-resp p { margin: 0; }
+.tkc-resp.ok { border-color: var(--good); background: color-mix(in srgb, var(--good) 14%, var(--glass)); }
+.tkc-resp.ok h2 { color: var(--good); }
+.tkc-resp textarea { width: 100%; font: inherit; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); resize: vertical; }
+a.btn.tkc-wa { min-height: 52px; background: #1f9d55; border-color: #1f9d55; color: #fff; font-size: 1rem; }
+.tkc-pie { text-align: center; font-size: 0.75rem; color: var(--muted); padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); margin: 0; }

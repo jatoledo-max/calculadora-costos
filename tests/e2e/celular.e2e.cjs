@@ -78,17 +78,17 @@ const servidor = http.createServer((req, res) => {
   await p.fill("#caja-saldo", "5000");
   await p.tap("#caja-btn-abrir");
   await p.waitForSelector("#caja-pos:not([hidden])");
-  await p.locator(".chip-cat", { hasText: "Lomitos" }).tap();
-  await p.locator(".pbtn", { hasText: "Lomito simple" }).tap();
-  await p.locator(".linea .qty[aria-label='Uno más']").tap();
-  await p.locator(".chip-cat", { hasText: "Extras" }).tap();
-  await p.locator(".pbtn", { hasText: "Pote de mayonesa" }).tap();
+  await p.locator("#view-caja .chip-cat", { hasText: "Lomitos" }).tap();
+  await p.locator("#view-caja .pbtn", { hasText: "Lomito simple" }).tap();
+  await p.locator("#view-caja .linea .qty[aria-label='Uno más']").tap();
+  await p.locator("#view-caja .chip-cat", { hasText: "Extras" }).tap();
+  await p.locator("#view-caja .pbtn", { hasText: "Pote de mayonesa" }).tap();
   assert.equal(await p.textContent("#caja-total-v"), "$ 16.500");
 
   // 5. Se recarga la app a mitad de la venta: el carrito sigue.
   await p.reload();
   await p.waitForSelector("#caja-pos:not([hidden]) .linea");
-  assert.equal(await p.locator(".linea").count(), 2);
+  assert.equal(await p.locator("#view-caja .linea").count(), 2);
   assert.equal(await p.textContent("#caja-total-v"), "$ 16.500");
   await p.tap(".pago.efectivo");
   await p.waitForFunction(() => /Venta 1 guardada/.test(document.querySelector(".caja-msg")?.textContent || ""));
@@ -97,10 +97,10 @@ const servidor = http.createServer((req, res) => {
   assert.match(await p.textContent("#caja-carrito"), /Tocá un producto/, "después de cobrar, el carrito queda vacío también al recargar");
 
   // 6. Lo tocable mide al menos 44 × 44 px (vendiendo, con descuento y envío abiertos, con gastos y cierre a la vista).
-  await p.locator(".chip-cat", { hasText: "Extras" }).tap();
-  await p.locator(".pbtn", { hasText: "Pote de mayonesa" }).tap();
-  await p.locator(".fila-chips .chip", { hasText: "Descuento" }).tap();
-  await p.locator(".fila-chips .chip", { hasText: "Otro cargo" }).tap();
+  await p.locator("#view-caja .chip-cat", { hasText: "Extras" }).tap();
+  await p.locator("#view-caja .pbtn", { hasText: "Pote de mayonesa" }).tap();
+  await p.locator("#view-caja .fila-chips .chip", { hasText: "Descuento" }).tap();
+  await p.locator("#view-caja .fila-chips .chip", { hasText: "Otro cargo" }).tap();
   await p.locator("#caja-ventas .venta").first().getByRole("button", { name: "Anular" }).tap();
   await p.tap("#caja-btn-cerrar");
   const chicos = await p.evaluate(() => [...document.querySelectorAll("#pantalla-app header button, #view-caja button, #view-caja input, #view-caja select, #view-caja summary, #view-caja textarea")]
@@ -131,7 +131,7 @@ const servidor = http.createServer((req, res) => {
   await p.waitForSelector("#pantalla-app:not([hidden])");
   assert.equal(await p.isVisible("#sin-conexion"), true, "falta el aviso sin conexión");
   assert.match(await p.textContent("#sin-conexion"), /Sin internet/);
-  assert.equal(await p.locator(".linea").count(), 1, "el carrito sigue sin internet");
+  assert.equal(await p.locator("#view-caja .linea").count(), 1, "el carrito sigue sin internet");
   await paso("2-sin-internet");
   await ctx.setOffline(false);
   await p.waitForFunction(() => document.querySelector("#sin-conexion").hidden);
