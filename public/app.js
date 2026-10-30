@@ -8,6 +8,8 @@ import { iniciarMenuNegocio } from "./menu.js";
 import { subirFotoSupabase, subirFotoDemo } from "./fotos.js";
 import { iniciarAsistente, preguntarConCuenta } from "./asistente.js";
 import { completarContacto } from "./legal.js";
+import { iniciarTickets } from "./tickets.js";
+import { supabaseTickets, localTickets } from "./tickets-datos.js";
 
 const $ = (s) => document.querySelector(s);
 const PANTALLAS = ["cargando", "login", "alta", "pago", "app"];
@@ -92,7 +94,9 @@ function arrancarDemo() {
   mostrar("app");
   const calc = iniciarCalculadora(localStore(), { subirFoto: subirFotoDemo });
   const caja = localCaja(calc.estado);
-  iniciarInformes(calc, caja, iniciarCaja(calc, caja));
+  const pantallaCaja = iniciarCaja(calc, caja);
+  iniciarInformes(calc, caja, pantallaCaja);
+  iniciarTickets(calc, localTickets(calc.estado), () => neg.nombre, pantallaCaja);
   iniciarCopias(caja, () => neg.nombre);
   iniciarMenuNegocio(calc, () => neg.nombre, null);
   iniciarAsistente(null);
@@ -187,7 +191,9 @@ async function arrancar() {
     mostrar("app");
     const calc = iniciarCalculadora(supabaseStore(supabase, neg.id), { subirFoto: subirFotoSupabase(supabase, neg.id) });
     const caja = supabaseCaja(supabase);
-    iniciarInformes(calc, caja, iniciarCaja(calc, caja));
+    const pantallaCaja = iniciarCaja(calc, caja);
+    iniciarInformes(calc, caja, pantallaCaja);
+    iniciarTickets(calc, supabaseTickets(supabase), () => neg.nombre, pantallaCaja);
     iniciarCopias(caja, () => neg.nombre);
     iniciarMenuNegocio(calc, () => neg.nombre, async (slug) => {
       const { data, error } = await supabase.rpc("menu_publico", { p_slug: slug });

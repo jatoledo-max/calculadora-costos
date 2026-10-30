@@ -707,5 +707,24 @@ export function iniciarCaja(calc, backend) {
   window.addEventListener("online", () => { if (st.errorCarga) recargar(); });
   render();
   recargar();
-  return { recargar, hayAbierta: () => !!(st.caja && st.caja.estado === "abierta") };
+  // Un ticket que el cliente aceptó (pestaña Tickets) pasa al carrito; la venta se guarda al tocar el medio de pago.
+  function cargarTicket(t) {
+    if (st.enviando) return false;
+    if (st.carrito.length && !confirm("Hay una venta sin cobrar en el carrito. ¿La reemplazás por el ticket #" + t.numero + "?")) return false;
+    vaciar();
+    st.carrito = t.items.filter((i) => prods()[i.producto]).map((i) => ({ producto: i.producto, opcion: i.opcion || null, cantidad: i.cantidad }));
+    const envio = t.envio == null ? null : Number(t.envio);
+    if (envio == null) st.envio = "retira";
+    else if (envio === 0) st.envio = "sin-cargo";
+    else if (envio === cargoEnvioDefault()) st.envio = "cargo";
+    else { st.envio = "otro"; st.cargoOtro = String(envio); }
+    const abierta = st.caja && st.caja.estado === "abierta";
+    const faltan = t.items.length - st.carrito.length;
+    st.msg = { ok: abierta && !faltan, texto: "Ticket #" + t.numero + " en el carrito." +
+      (faltan ? " Ojo: " + faltan + (faltan === 1 ? " producto ya no existe y no se cargó." : " productos ya no existen y no se cargaron.") : "") +
+      (abierta ? " Tocá cómo te pagó para guardar la venta." : " Abrí la caja para cobrarlo.") };
+    render();
+    return true;
+  }
+  return { recargar, cargarTicket, hayAbierta: () => !!(st.caja && st.caja.estado === "abierta") };
 }

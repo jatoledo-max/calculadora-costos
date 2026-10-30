@@ -16,3 +16,9 @@
   [headers.values]
     Content-Type = "application/manifest+json"
     Cache-Control = "no-cache"
+
+# Link del ticket que se le manda al cliente: /t/<código> abre la página del ticket.
+[[redirects]]
+  from = "/t/*"
+  to = "/ticket.html"
+  status = 200
