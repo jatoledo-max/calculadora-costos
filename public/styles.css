@@ -597,3 +597,9 @@ body.tkc { margin: 0; min-height: 100vh; }
 .tkc-resp textarea { width: 100%; font: inherit; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); resize: vertical; }
 a.btn.tkc-wa { min-height: 52px; background: #1f9d55; border-color: #1f9d55; color: #fff; font-size: 1rem; }
 .tkc-pie { text-align: center; font-size: 0.75rem; color: var(--muted); padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); margin: 0; }
+
+/* Columna de borrar en las tablas: sin fondo propio en pantallas anchas (se veía como un cuadrado aparte);
+   en el celular la tabla se desliza de costado y la columna queda fija con fondo para tapar lo que pasa por debajo. */
+th.acc, td.acc { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; white-space: nowrap; }
+td.acc .btn + .btn { margin-left: 4px; }
+@media (max-width: 760px) { th.acc, td.acc { background: var(--bg); } }

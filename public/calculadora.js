@@ -441,12 +441,21 @@ export function iniciarCalculadora(s, { subirFoto } = {}) {
       };
       nm.onchange = save; ca.onchange = save; un.onchange = save; pr.onchange = save; re.onchange = save; me.onchange = save; pk.onchange = save;
       const del = tr.querySelector("button");
-      del.onclick = () => {
-        if (del.dataset.armed) store.del("insumos", id);
-        else { del.dataset.armed = "1"; del.textContent = "¿Borrar?"; del.scrollIntoView({ block: "nearest", inline: "nearest" }); setTimeout(() => { if (del.isConnected) { delete del.dataset.armed; del.textContent = "✕"; } }, 3000); }
-      };
+      del.onclick = () => confirmarBorrado(del, () => store.del("insumos", id));
       tb.appendChild(tr);
     });
+  }
+
+  // La ✕ de una fila se cambia por "Borrar" y "Cancelar": nada se borra con un solo toque.
+  function confirmarBorrado(del, borrar) {
+    const td = del.parentElement;
+    const si = document.createElement("button"), no = document.createElement("button");
+    si.type = no.type = "button";
+    si.className = "btn danger chico"; si.textContent = "Borrar"; si.onclick = borrar;
+    no.className = "btn ghost chico"; no.textContent = "Cancelar"; no.onclick = () => { td.replaceChildren(del); del.focus(); };
+    td.replaceChildren(si, no);
+    td.scrollIntoView({ block: "nearest", inline: "nearest" });
+    no.focus();
   }
 
   function renderGastos() {
@@ -464,10 +473,7 @@ export function iniciarCalculadora(s, { subirFoto } = {}) {
       const save = () => { const body = { nombre: nm.value.trim() || g.nombre, monto: Number(mo.value) || 0 }; state.gastos[id] = body; render(); store.set("gastos", id, body); };
       nm.onchange = save; mo.onchange = save;
       const del = tr.querySelector("button");
-      del.onclick = () => {
-        if (del.dataset.armed) store.del("gastos", id);
-        else { del.dataset.armed = "1"; del.textContent = "¿Borrar?"; del.scrollIntoView({ block: "nearest", inline: "nearest" }); setTimeout(() => { if (del.isConnected) { delete del.dataset.armed; del.textContent = "✕"; } }, 3000); }
-      };
+      del.onclick = () => confirmarBorrado(del, () => store.del("gastos", id));
       tb.appendChild(tr);
     });
     const um = $("#gas-unidades");
