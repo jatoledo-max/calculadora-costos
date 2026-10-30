@@ -3,16 +3,18 @@
 // y el cliente responde una sola vez a la versión que está mirando.
 import { fmtPesos } from "./dinero.js";
 import { SinRespuesta } from "./stores.js";
+import { conCantidad } from "./plural.js";
 
-export const ESTADOS = { pendiente: "Esperando respuesta", aceptado: "Aceptado", cambio: "Pide un cambio", rechazado: "Rechazado" };
+export const ESTADOS = { pendiente: "Enviado", aceptado: "Aceptado", cambio: "Pide un cambio", rechazado: "Rechazado" };
 
 // Link que abre el cliente.
 export const linkTicket = (token, origen = location.origin) => origen + "/t/" + token;
 
-// Mensaje de WhatsApp: el detalle completo (se lee aunque no abra el link) y el link para responder.
-export function textoWhatsApp(t, negocio, link) {
+// Mensaje de WhatsApp: el detalle completo hasta el total. El cliente confirma respondiendo en el chat.
+// productos: el catálogo de la calculadora, para escribir el plural de cada uno ("2 Lomitos completos").
+export function textoWhatsApp(t, negocio, productos = {}) {
   const renglones = (t.items || []).map((i) =>
-    i.cantidad + " × " + i.nombre + (i.opcion_nombre ? " (" + i.opcion_nombre + ")" : "") + " — " + fmtPesos(i.subtotal));
+    conCantidad(i.cantidad, i.nombre, (productos[i.producto] || {}).plural) + (i.opcion_nombre ? " (" + i.opcion_nombre + ")" : "") + " — " + fmtPesos(i.subtotal));
   const envio = t.envio == null ? "Retira en el local" : "Envío — " + (Number(t.envio) ? fmtPesos(t.envio) : "sin cargo");
   return [
     "*" + (negocio ? negocio + " · " : "") + "Pedido #" + t.numero + "*",
@@ -20,9 +22,6 @@ export function textoWhatsApp(t, negocio, link) {
     envio,
     t.nota ? "Nota: " + t.nota : null,
     "*TOTAL: " + fmtPesos(t.total) + "*",
-    "",
-    "Para confirmar o pedir un cambio, tocá acá:",
-    link,
   ].filter((x) => x != null).join("\n");
 }
 

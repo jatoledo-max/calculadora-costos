@@ -55,11 +55,12 @@ const capturas = process.argv[2];
   await p.waitForSelector(".tk-listo");
   assert.match(await p.textContent(".tk-listo"), /Ticket #1 listo · \$ 23\.700/);
   const wa = decodeURIComponent((await p.getAttribute(".tk-listo .tk-wa", "href")).split("text=")[1]);
-  assert.match(wa, /^\*Venutto Fast Food · Pedido #1\*\n2 × Lomito completo \(Pan árabe\) — \$ 20\.200\n1 × Extra de papas — \$ 2\.000\nEnvío — \$ 1\.500\n\*TOTAL: \$ 23\.700\*/);
-  const link = await p.getAttribute(".tk-listo a.btn.ghost", "href");
-  const token = link.split("/t/")[1];
-  assert.ok(token && token.length >= 20, "link con código: " + link);
-  assert.match(await p.textContent("#tk-lista"), /#1 · Juan[^]*Esperando respuesta[^]*\$ 23\.700/);
+  assert.equal(wa, "*Venutto Fast Food · Pedido #1*\n2 Lomitos completos (Pan árabe) — $ 20.200\n1 Extra de papas — $ 2.000\nEnvío — $ 1.500\n*TOTAL: $ 23.700*");
+  assert.equal(await p.locator(".tk-listo a.btn.ghost").count(), 0, "sin link para el cliente");
+  // La página del cliente sigue existiendo: se prueba con el código guardado.
+  const token = (await p.evaluate(() => JSON.parse(localStorage.getItem("tickets-demo-v1"))))[0].token;
+  assert.ok(token && token.length >= 20);
+  assert.match(await p.textContent("#tk-lista"), /#1 · Juan[^]*Enviado[^]*\$ 23\.700[^]*2 Lomitos completos \(Pan árabe\), 1 Extra de papas[^]*Pasar a la Caja/);
   await foto(p, "2-ticket-listo");
 
   // ---------- El cliente abre el link ----------
@@ -96,7 +97,7 @@ const capturas = process.argv[2];
   assert.equal(await p.textContent("#tk-total"), "$ 24.200");
   await p.click("#tk-crear");
   await p.waitForSelector(".tk-listo");
-  assert.match(await p.textContent(".tk-listo"), /Ticket #1 corregido · \$ 24\.200[^]*mismo/);
+  assert.match(await p.textContent(".tk-listo"), /Ticket #1 corregido · \$ 24\.200[^]*Mandale el ticket corregido/);
 
   // La página del cliente se actualiza sola (o al recargar) y ahora puede aceptar.
   await c.reload();

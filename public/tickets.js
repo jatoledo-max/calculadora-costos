@@ -4,7 +4,8 @@
 import { fmtPesos, aCentavos } from "./dinero.js";
 import { SinRespuesta } from "./stores.js";
 import { categoriaDe as catDe, ordenarCategorias } from "./costos.js";
-import { ESTADOS, linkTicket, textoWhatsApp } from "./tickets-datos.js";
+import { ESTADOS, textoWhatsApp } from "./tickets-datos.js";
+import { conCantidad } from "./plural.js";
 
 // caja: { cargarTicket(t) } para pasar un ticket aceptado al carrito de la Caja (null si no hay caja).
 export function iniciarTickets(calc, backend, nombreNegocio, caja) {
@@ -261,10 +262,9 @@ export function iniciarTickets(calc, backend, nombreNegocio, caja) {
     guardarBorrador();
   }
 
-  // Botones para mandar el ticket por WhatsApp, copiar el mensaje o verlo como el cliente.
+  // Botones para mandar el ticket por WhatsApp o copiar el mensaje.
   function accionesEnviar(t, conCopiar) {
-    const link = linkTicket(t.token);
-    const texto = textoWhatsApp(t, nombreNegocio(), link);
+    const texto = textoWhatsApp(t, nombreNegocio(), prods());
     const fila = el("div", "tk-acciones");
     const wa = el("a", "btn primary tk-wa", "Enviar por WhatsApp");
     wa.href = "https://wa.me/?text=" + encodeURIComponent(texto); wa.target = "_blank"; wa.rel = "noopener";
@@ -277,8 +277,6 @@ export function iniciarTickets(calc, backend, nombreNegocio, caja) {
       };
       fila.appendChild(cp);
     }
-    const ver = el("a", "btn ghost", "Ver como el cliente"); ver.href = link; ver.target = "_blank"; ver.rel = "noopener";
-    fila.appendChild(ver);
     return fila;
   }
 
@@ -286,7 +284,7 @@ export function iniciarTickets(calc, backend, nombreNegocio, caja) {
     const box = el("div", "tk-listo");
     box.setAttribute("role", "status");
     box.appendChild(el("b", null, (corregido ? "Ticket #" + t.numero + " corregido" : "Ticket #" + t.numero + " listo") + " · " + fmtPesos(t.total)));
-    box.appendChild(el("p", "hint", corregido ? "Mandale el link de nuevo: es el mismo y ya muestra la corrección." : "Mandáselo al cliente. Cuando responda, lo ves abajo en Tickets enviados."));
+    box.appendChild(el("p", "hint", corregido ? "Mandale el ticket corregido." : "Mandáselo al cliente. Cuando te confirme por WhatsApp, pasalo a la Caja desde Tickets enviados."));
     box.appendChild(accionesEnviar(t, true));
     const otro = el("button", "btn ghost", "Cerrar"); otro.type = "button"; otro.onclick = () => { st.listo = null; render(); };
     box.appendChild(otro);
@@ -311,14 +309,14 @@ export function iniciarTickets(calc, backend, nombreNegocio, caja) {
       li.append(el("span", "n", "#" + t.numero + (t.cliente ? " · " + t.cliente : "")), el("span", "h", dia(t.creado_en)),
         el("span", "md"), el("span", "t num", fmtPesos(t.total)));
       li.querySelector(".md").appendChild(el("span", "tag tk-estado", ESTADOS[t.estado] || t.estado));
-      li.appendChild(el("span", "it", t.items.map((i) => i.cantidad + "× " + i.nombre + (i.opcion_nombre ? " (" + i.opcion_nombre + ")" : "")).join(", ") +
+      li.appendChild(el("span", "it", t.items.map((i) => conCantidad(i.cantidad, i.nombre, (prods()[i.producto] || {}).plural) + (i.opcion_nombre ? " (" + i.opcion_nombre + ")" : "")).join(", ") +
         (t.envio == null ? " · retira" : " · envío " + fmtPesos(t.envio))));
       if (t.estado === "cambio" && t.respuesta) li.appendChild(el("p", "tk-respuesta", "Pide: " + t.respuesta));
       if (t.estado === "rechazado" && t.respuesta) li.appendChild(el("p", "tk-respuesta", "Motivo: " + t.respuesta));
       const acc = el("div", "tk-acc");
-      if (t.estado === "aceptado" && caja) {
+      if (t.estado !== "rechazado" && caja) {
         const yaEsta = enCaja.includes(t.id);
-        const b = el("button", "btn" + (yaEsta ? "" : " primary"), yaEsta ? "Ya está en la Caja · pasar de nuevo" : "Pasar a la Caja"); b.type = "button";
+        const b = el("button", "btn" + (yaEsta || t.estado === "cambio" ? "" : " primary"), yaEsta ? "Ya está en la Caja · pasar de nuevo" : "Pasar a la Caja"); b.type = "button";
         b.onclick = () => { if (!yaEsta || confirm("Este ticket ya lo pasaste a la Caja. ¿Pasarlo de nuevo?")) pasarACaja(t); };
         acc.appendChild(b);
       }
@@ -329,9 +327,6 @@ export function iniciarTickets(calc, backend, nombreNegocio, caja) {
         r.querySelector(".tk-wa").textContent = "Reenviar";
         r.querySelector(".tk-wa").className = "btn tk-wa";
         acc.append(...r.childNodes);
-      } else {
-        const ver = el("a", "btn ghost", "Ver"); ver.href = linkTicket(t.token); ver.target = "_blank"; ver.rel = "noopener";
-        acc.appendChild(ver);
       }
       li.appendChild(acc);
       ul.appendChild(li);
