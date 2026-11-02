@@ -1,7 +1,7 @@
 // Pestaña Compras: cada vez que comprás algo para el negocio lo cargás en tres toques:
 // categoría (Carnicería) › qué compraste (nalga) › cuánto pagaste ($ 21.000). La app calcula cuántos kilos son
 // con el último precio que pagaste por eso; si ponés el peso exacto, aprende el precio nuevo.
-// Cada compra se descuenta sola del efectivo de la caja abierta (como "Compra de mercadería"; no resta de la
+// Cada compra se descuenta sola de la caja abierta, en efectivo o transferencia (como "Compra de mercadería"; no resta de la
 // ganancia del día porque ese costo ya entra cuando vendés). Abajo: lo de hoy y el mes separado por categoría.
 import { fmtPesos } from "./dinero.js";
 import { SinRespuesta } from "./stores.js";
@@ -23,7 +23,7 @@ export function iniciarCompras(calc, backend, caja, pantallaCaja) {
   const st = {
     hoy: hoyLocal(), mes: hoyLocal().slice(0, 7),
     deHoy: [], delMes: [], delAnterior: [], cargado: false, error: "",
-    pendienteId: null, enviando: false, editandoCats: false, borrando: null, catAbierta: null,
+    pendienteId: null, enviando: false, medio: "efectivo", editandoCats: false, borrando: null, catAbierta: null,
   };
 
   // ---------- Carga ----------
@@ -146,6 +146,9 @@ export function iniciarCompras(calc, backend, caja, pantallaCaja) {
   }
   [desc, imp, cant, uni].forEach((x) => { x.oninput = () => { msg(""); alEscribir(); }; x.onchange = alEscribir; });
   fecha.onchange = () => { st.pendienteId = null; };
+  // Efectivo o transferencia: viene marcado Efectivo; se toca solo si pagaste por transferencia.
+  const pintarMedio = () => document.querySelectorAll("#cmp-medio .chip").forEach((b) => b.setAttribute("aria-pressed", b.dataset.medio === st.medio ? "true" : "false"));
+  document.querySelectorAll("#cmp-medio .chip").forEach((b) => { b.onclick = () => { st.medio = b.dataset.medio; st.pendienteId = null; pintarMedio(); }; });
 
   $("#cmp-form").onsubmit = async (e) => {
     e.preventDefault();
@@ -158,7 +161,7 @@ export function iniciarCompras(calc, backend, caja, pantallaCaja) {
     if (!st.pendienteId) st.pendienteId = crypto.randomUUID();
     const compra = {
       id: st.pendienteId, fecha: fecha.value || st.hoy, categoria: cat, descripcion: nombre.slice(0, 120), importe,
-      cantidad: c ? c.cantidad : null, unidad: c ? c.unidad : null, estimada: c ? c.estimada : false, creado_en: new Date().toISOString(),
+      cantidad: c ? c.cantidad : null, unidad: c ? c.unidad : null, estimada: c ? c.estimada : false, medio: st.medio, creado_en: new Date().toISOString(),
     };
     const err = errorCompra(compra);
     if (err) { msg(err); (err.includes("categoría") ? $("#cmp-cats button") : err.includes("compraste") ? desc : err.includes("fecha") ? fecha : imp)?.focus(); return; }
@@ -170,7 +173,7 @@ export function iniciarCompras(calc, backend, caja, pantallaCaja) {
       compra.en_caja = false;
       if (caja && compra.fecha === st.hoy) {
         try {
-          await caja.registrarMovimiento({ id: compra.id, tipo: "compra_mercaderia", medio: "efectivo", importe: compra.importe,
+          await caja.registrarMovimiento({ id: compra.id, tipo: "compra_mercaderia", medio: compra.medio, importe: compra.importe,
             descripcion: (compra.categoria + ": " + compra.descripcion).slice(0, 120) });
           compra.en_caja = true;
         } catch (e3) {
@@ -184,6 +187,7 @@ export function iniciarCompras(calc, backend, caja, pantallaCaja) {
       guardarAjustes({ refs: actualizarRefs(refs(), compra) });
       msg("Guardada: " + compra.descripcion + " " + fmtPesos(compra.importe) + (compra.en_caja ? ", descontada de la caja." : ".") + aviso, !aviso);
       desc.value = ""; imp.value = ""; cant.value = ""; fecha.value = hoyLocal(); $("#cmp-opc").open = false;
+      st.medio = "efectivo"; pintarMedio();
       alEscribir();
       desc.focus();
       await cargar();
@@ -198,7 +202,7 @@ export function iniciarCompras(calc, backend, caja, pantallaCaja) {
   // ---------- Listas ----------
   const ddmm = (f) => f.slice(8) + "/" + f.slice(5, 7);
   const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
-  const detalle = (c) => [c.descripcion, c.cantidad ? (c.estimada ? "≈ " : "") + fmtCantidad(c.cantidad, c.unidad) : "", c.en_caja ? "de la caja" : ""].filter(Boolean).join(" · ");
+  const detalle = (c) => [c.descripcion, c.cantidad ? (c.estimada ? "≈ " : "") + fmtCantidad(c.cantidad, c.unidad) : "", c.en_caja ? (c.medio === "transferencia" ? "de la caja (transferencia)" : "de la caja") : ""].filter(Boolean).join(" · ");
 
   // Un renglón de compra con su ✕ (que pide confirmar antes de borrar).
   function renglon(c, primero) {

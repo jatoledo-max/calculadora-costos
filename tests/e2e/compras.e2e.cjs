@@ -119,7 +119,14 @@ const capturas = process.argv[2];
   // Más de lo que hay en efectivo: se guarda igual y avisa.
   await p.fill("#cmp-desc", "Papas"); await p.fill("#cmp-importe", "90000"); await p.click("#cmp-guardar");
   await p.waitForFunction(() => /Guardada: Papas.*No se descontó de la caja: En la caja debería haber \$ 46\.000/.test(document.querySelector("#cmp-msg").textContent));
+  // Por transferencia: se descuenta aunque no alcance el efectivo, y después vuelve a Efectivo.
+  await p.locator("#cmp-medio .chip", { hasText: "Transferencia" }).click();
+  await p.fill("#cmp-desc", "Queso tybo"); await p.fill("#cmp-importe", "90000"); await p.click("#cmp-guardar");
+  await p.waitForFunction(() => /Guardada: Queso tybo \$ 90\.000, descontada de la caja\.$/.test(document.querySelector("#cmp-msg").textContent));
+  assert.equal(await p.locator("#cmp-medio .chip", { hasText: "Efectivo" }).getAttribute("aria-pressed"), "true");
+  assert.match(await p.textContent("#cmp-hoy"), /Queso tybo · de la caja \(transferencia\)/);
   await p.click("#tab-caja");
+  await p.waitForFunction(() => /Transferencia · Verdulería: Queso tybo/.test(document.querySelector("#caja-movs").textContent));
   await p.waitForFunction(() => /Verdulería: Lechuga/.test(document.querySelector("#caja-movs").textContent));
   assert.doesNotMatch(await p.textContent("#caja-movs"), /Papas/);
   await p.click("#tab-compras");

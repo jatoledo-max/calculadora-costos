@@ -126,9 +126,10 @@
             <label class="f">Fecha<input id="cmp-fecha" type="date"></label>
           </div>
         </details>
+        <div class="fila-chips" id="cmp-medio"><span class="k">Pagué con</span><button class="chip" type="button" data-medio="efectivo" aria-pressed="true">Efectivo</button><button class="chip" type="button" data-medio="transferencia" aria-pressed="false">Transferencia</button></div>
         <button class="btn primary grande" id="cmp-guardar" type="submit">Guardar compra</button>
         <p id="cmp-msg" class="caja-msg-txt" role="status"></p>
-        <p class="hint">Se descuenta sola del efectivo de la caja abierta. No resta de la ganancia del día: ese costo ya entra cuando vendés.</p>
+        <p class="hint">Se descuenta sola de la caja abierta. No resta de la ganancia del día: ese costo ya entra cuando vendés.</p>
       </form>
     </div>
     <div id="cmp-hoy" class="card"></div>
