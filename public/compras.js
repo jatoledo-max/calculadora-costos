@@ -56,11 +56,13 @@ export function iniciarCompras(calc, backend, caja, pantallaCaja) {
       const lista = await backend.listar(hoyLocal(new Date(c.cerrada_en)), st.hoy);
       st.desdeCierre = lista.filter((x) => !x.en_caja && String(x.creado_en) > String(c.cerrada_en));
     }
-    if (pantallaCaja && pantallaCaja.comprasDesdeCierre) pantallaCaja.comprasDesdeCierre(resumen(st.desdeCierre).total);
+    if (pantallaCaja && pantallaCaja.comprasDesdeCierre) pantallaCaja.comprasDesdeCierre(conCierre() ? gananciaCierre() + resumen(st.desdeCierre).total : null);
     renderDisponible();
   }
   const conCierre = () => { const c = st.ultCaja; return c && c.estado === "cerrada" && c.resumen && c.resumen.disponible_estimado != null; };
-  const quedaDisponible = () => Math.round(Number(st.ultCaja.resumen.disponible_estimado) - resumen(st.desdeCierre).total);
+  // Lo que queda para compras = disponible para retirar del cierre − tu ganancia de esa caja (es tuya) − compras ya cargadas.
+  const gananciaCierre = () => Math.max(0, Math.round(Number(st.ultCaja.resumen.resultado_estimado) || 0));
+  const quedaDisponible = () => Math.round(Number(st.ultCaja.resumen.disponible_estimado) - gananciaCierre() - resumen(st.desdeCierre).total);
   function renderDisponible() {
     const box = $("#cmp-disp");
     box.textContent = "";
@@ -73,9 +75,11 @@ export function iniciarCompras(calc, backend, caja, pantallaCaja) {
     if (!conCierre()) { box.hidden = true; return; }
     box.hidden = false; box.className = "cmp-disp";
     const gastado = resumen(st.desdeCierre).total;
-    box.append(el("span", "k", "Disponible para retirar"), el("span", "v num", fmtPesos(quedaDisponible())),
-      el("span", "note", gastado ? "Del cierre de la caja " + c.numero + " (" + fmtPesos(Math.round(c.resumen.disponible_estimado)) + ") menos " + fmtPesos(gastado) + " de compras."
-        : "Del cierre de la caja " + c.numero + ". Las compras que cargues ahora se descuentan de acá."));
+    const q = quedaDisponible();
+    if (q < 0) box.classList.add("neg");
+    box.append(el("span", "k", "Te queda para compras"), el("span", "v num", fmtPesos(q)),
+      el("span", "note", "Disponible del cierre de la caja " + c.numero + " " + fmtPesos(Math.round(c.resumen.disponible_estimado)) +
+        " − tu ganancia " + fmtPesos(gananciaCierre()) + (gastado ? " − compras " + fmtPesos(gastado) : "") + ". Las compras que cargues ahora se descuentan de acá."));
   }
 
   // ---------- Formulario ----------
@@ -229,7 +233,7 @@ export function iniciarCompras(calc, backend, caja, pantallaCaja) {
       await cargar();
       const delDisp = !compra.en_caja && !aviso && conCierre();
       msg("Guardada: " + compra.descripcion + " " + fmtPesos(compra.importe) + (compra.en_caja ? ", descontada de la caja." :
-        delDisp ? ", descontada del disponible para retirar (te quedan " + fmtPesos(quedaDisponible()) + ")." : ".") + aviso, !aviso);
+        delDisp ? ", descontada del disponible (te quedan " + fmtPesos(quedaDisponible()) + " para compras)." : ".") + aviso, !aviso);
     } catch (e2) {
       msg(e2 instanceof SinRespuesta ? "No hubo respuesta. Revisá la conexión y tocá Guardar de nuevo (no se duplica)." : e2.message);
     } finally {
