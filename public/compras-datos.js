@@ -1,5 +1,6 @@
 // Compras del día a día (carnicería, verdulería, mayorista…): las cuentas y dónde se guardan.
-// Una compra es { id, fecha "2026-11-02", categoria, descripcion, importe, cantidad, unidad, estimada, creado_en }.
+// Una compra es { id, fecha "2026-11-02", categoria, descripcion, importe, cantidad, unidad, estimada, en_caja, creado_en }.
+//   en_caja: se descontó de la caja abierta (el movimiento de la caja tiene el mismo id que la compra).
 //   cantidad/unidad: lo que compraste en kg, l o u. Si no pusiste el peso, la app lo estima con el último precio
 //   que pagaste por eso (o con el precio de Insumos) y queda estimada = true. Puede quedar vacía (null).
 // Lo que la app "aprende" (último precio por kilo de cada cosa, lo que comprás siempre) va en ajustes/compras:

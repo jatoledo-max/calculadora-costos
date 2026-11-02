@@ -46,6 +46,7 @@ const capturas = process.argv[2];
   assert.match(await p.textContent("#cmp-calc"), /1,8 kg de nalga.*Te salió \$ 12\.000 el kg/s);
   await p.click("#cmp-guardar");
   await p.waitForFunction(() => /Guardada: Nalga/.test(document.querySelector("#cmp-msg").textContent));
+  assert.match(await p.textContent("#cmp-msg"), /No había caja abierta: no se descontó/);
   assert.equal(await p.inputValue("#cmp-desc"), "");
   assert.equal(await cat("Carnicería").getAttribute("aria-pressed"), "true", "la categoría queda elegida");
   assert.match(await p.textContent("#cmp-chips"), /Nalga/);
@@ -105,6 +106,28 @@ const capturas = process.argv[2];
   await p.waitForFunction(() => document.querySelectorAll("#cmp-hoy .cmp-lista li").length === 3);
   assert.equal(await p.locator("#view-compras").isVisible(), true);
   assert.match(await p.textContent("#cmp-cats"), /Bebidas/);
+
+  // Con la caja abierta, la compra se descuenta sola del efectivo; al borrarla vuelve a la caja.
+  await p.click("#tab-caja");
+  await p.fill("#caja-saldo", "50000"); await p.click("#caja-btn-abrir");
+  await p.waitForSelector("#caja-movs:not([hidden])");
+  await p.click("#tab-compras");
+  await cat("Verdulería").click();
+  await p.fill("#cmp-desc", "Lechuga"); await p.fill("#cmp-importe", "4000"); await p.click("#cmp-guardar");
+  await p.waitForFunction(() => /Guardada: Lechuga \$ 4\.000, descontada de la caja\.$/.test(document.querySelector("#cmp-msg").textContent));
+  assert.match(await p.textContent("#cmp-hoy"), /Lechuga · de la caja/);
+  // Más de lo que hay en efectivo: se guarda igual y avisa.
+  await p.fill("#cmp-desc", "Papas"); await p.fill("#cmp-importe", "90000"); await p.click("#cmp-guardar");
+  await p.waitForFunction(() => /Guardada: Papas.*No se descontó de la caja: En la caja debería haber \$ 46\.000/.test(document.querySelector("#cmp-msg").textContent));
+  await p.click("#tab-caja");
+  await p.waitForFunction(() => /Verdulería: Lechuga/.test(document.querySelector("#caja-movs").textContent));
+  assert.doesNotMatch(await p.textContent("#caja-movs"), /Papas/);
+  await p.click("#tab-compras");
+  await p.locator("#cmp-hoy li", { hasText: "Lechuga" }).locator("button.x").click();
+  await p.locator("#cmp-hoy li", { hasText: "Lechuga" }).locator("button", { hasText: "Borrar" }).click();
+  await p.waitForFunction(() => /Compra borrada y devuelta a la caja/.test(document.querySelector("#cmp-msg").textContent));
+  await p.click("#tab-caja");
+  await p.waitForFunction(() => /anulado: Compra borrada/.test(document.querySelector("#caja-movs").textContent));
 
   // Sin desborde horizontal en el celular.
   assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "la página no se corre de costado");

@@ -99,7 +99,7 @@ function arrancarDemo() {
   const pantallaCaja = iniciarCaja(calc, caja);
   iniciarInformes(calc, caja, pantallaCaja);
   iniciarTickets(calc, localTickets(calc.estado), () => neg.nombre, pantallaCaja);
-  iniciarCompras(calc, localCompras());
+  iniciarCompras(calc, localCompras(), caja, pantallaCaja);
   iniciarCopias(caja, () => neg.nombre);
   iniciarMenuNegocio(calc, () => neg.nombre, null);
   iniciarAsistente(null);
@@ -197,7 +197,7 @@ async function arrancar() {
     const pantallaCaja = iniciarCaja(calc, caja);
     iniciarInformes(calc, caja, pantallaCaja);
     iniciarTickets(calc, supabaseTickets(supabase), () => neg.nombre, pantallaCaja);
-    iniciarCompras(calc, supabaseCompras(supabase, neg.id));
+    iniciarCompras(calc, supabaseCompras(supabase, neg.id), caja, pantallaCaja);
     iniciarCopias(caja, () => neg.nombre);
     iniciarMenuNegocio(calc, () => neg.nombre, async (slug) => {
       const { data, error } = await supabase.rpc("menu_publico", { p_slug: slug });

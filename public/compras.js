@@ -1,7 +1,8 @@
 // Pestaña Compras: cada vez que comprás algo para el negocio lo cargás en tres toques:
 // categoría (Carnicería) › qué compraste (nalga) › cuánto pagaste ($ 21.000). La app calcula cuántos kilos son
 // con el último precio que pagaste por eso; si ponés el peso exacto, aprende el precio nuevo.
-// Abajo: lo de hoy y el mes separado por categoría. No toca la caja ni los costos de los productos.
+// Cada compra se descuenta sola del efectivo de la caja abierta (como "Compra de mercadería"; no resta de la
+// ganancia del día porque ese costo ya entra cuando vendés). Abajo: lo de hoy y el mes separado por categoría.
 import { fmtPesos } from "./dinero.js";
 import { SinRespuesta } from "./stores.js";
 import {
@@ -9,7 +10,7 @@ import {
   fmtCantidad, nombreUnidad, actualizarRefs, loDeSiempre, resumen, errorCompra,
 } from "./compras-datos.js";
 
-export function iniciarCompras(calc, backend) {
+export function iniciarCompras(calc, backend, caja, pantallaCaja) {
   const $ = (s) => document.querySelector(s);
   const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
   const ajustes = () => calc.estado.ajustes.compras || {};
@@ -163,10 +164,25 @@ export function iniciarCompras(calc, backend) {
     if (err) { msg(err); (err.includes("categoría") ? $("#cmp-cats button") : err.includes("compraste") ? desc : err.includes("fecha") ? fecha : imp)?.focus(); return; }
     st.enviando = true; $("#cmp-guardar").disabled = true; $("#cmp-guardar").textContent = "Guardando…";
     try {
+      // Primero se descuenta de la caja (mismo id que la compra: un reintento no la descuenta dos veces).
+      // Si no hay caja abierta o no alcanza el efectivo, la compra se guarda igual y se avisa.
+      let aviso = "";
+      compra.en_caja = false;
+      if (caja && compra.fecha === st.hoy) {
+        try {
+          await caja.registrarMovimiento({ id: compra.id, tipo: "compra_mercaderia", medio: "efectivo", importe: compra.importe,
+            descripcion: (compra.categoria + ": " + compra.descripcion).slice(0, 120) });
+          compra.en_caja = true;
+        } catch (e3) {
+          if (e3 instanceof SinRespuesta) throw e3;
+          aviso = /No hay una caja abierta/.test(e3.message) ? " No había caja abierta: no se descontó de la caja." : " No se descontó de la caja: " + e3.message;
+        }
+      } else if (caja) aviso = " Es de otro día: no se descontó de la caja de hoy.";
       await backend.guardar(compra);
+      if (compra.en_caja && pantallaCaja) pantallaCaja.recargar();
       st.pendienteId = null;
       guardarAjustes({ refs: actualizarRefs(refs(), compra) });
-      msg("Guardada: " + compra.descripcion + " " + fmtPesos(compra.importe) + (compra.fecha !== st.hoy ? " (el " + compra.fecha.slice(8) + "/" + compra.fecha.slice(5, 7) + ")" : "") + ".", true);
+      msg("Guardada: " + compra.descripcion + " " + fmtPesos(compra.importe) + (compra.en_caja ? ", descontada de la caja." : ".") + aviso, !aviso);
       desc.value = ""; imp.value = ""; cant.value = ""; fecha.value = hoyLocal(); $("#cmp-opc").open = false;
       alEscribir();
       desc.focus();
@@ -182,7 +198,7 @@ export function iniciarCompras(calc, backend) {
   // ---------- Listas ----------
   const ddmm = (f) => f.slice(8) + "/" + f.slice(5, 7);
   const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
-  const detalle = (c) => [c.descripcion, c.cantidad ? (c.estimada ? "≈ " : "") + fmtCantidad(c.cantidad, c.unidad) : ""].filter(Boolean).join(" · ");
+  const detalle = (c) => [c.descripcion, c.cantidad ? (c.estimada ? "≈ " : "") + fmtCantidad(c.cantidad, c.unidad) : "", c.en_caja ? "de la caja" : ""].filter(Boolean).join(" · ");
 
   // Un renglón de compra con su ✕ (que pide confirmar antes de borrar).
   function renglon(c, primero) {
@@ -196,7 +212,17 @@ export function iniciarCompras(calc, backend) {
       const si = el("button", "btn danger chico", "Borrar"); si.type = "button";
       si.onclick = async () => {
         si.disabled = true;
-        try { await backend.borrar(c.id); st.borrando = null; await cargar(); }
+        try {
+          // Si se había descontado de la caja, se anula ese movimiento (solo se puede mientras esa caja siga abierta).
+          let aviso = "";
+          if (c.en_caja && caja) {
+            try { await caja.anularMovimiento(c.id, "Compra borrada en la pestaña Compras"); if (pantallaCaja) pantallaCaja.recargar(); }
+            catch (e2) { if (e2 instanceof SinRespuesta) throw e2; aviso = "La caja de esa compra ya está cerrada: ahí queda como estaba."; }
+          }
+          await backend.borrar(c.id); st.borrando = null;
+          msg(aviso ? "Compra borrada. " + aviso : c.en_caja ? "Compra borrada y devuelta a la caja." : "Compra borrada.", !aviso);
+          await cargar();
+        }
         catch (e) { si.disabled = false; msg(e instanceof SinRespuesta ? "No se pudo borrar: revisá la conexión." : e.message); }
       };
       const no = el("button", "btn ghost chico", "Cancelar"); no.type = "button";
