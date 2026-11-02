@@ -603,3 +603,48 @@ a.btn.tkc-wa { min-height: 52px; background: #1f9d55; border-color: #1f9d55; col
 th.acc, td.acc { position: static; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; white-space: nowrap; }
 td.acc .btn + .btn { margin-left: 4px; }
 @media (max-width: 760px) { th.acc, td.acc { position: sticky; background: var(--bg); } }
+
+/* ---------- Compras ---------- */
+.cmp-cab { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cmp-cab .sec-t { margin: 0; }
+.cmp-cab > .sec-t:first-child { flex: 1; }
+.cmp-nav { justify-content: center; }
+.cmp-nav .sec-t { min-width: 11em; text-align: center; }
+.cmp-cab .cmp-tot { font: 600 1.2rem var(--f-num); }
+.cmp-cats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.cmp-cats button { font: 600 0.95rem var(--f-body); min-height: 52px; padding: 4px; border-radius: 14px; border: 1px solid var(--glass-edge); background: var(--glass-strong); color: var(--ink); cursor: pointer; overflow-wrap: break-word; touch-action: manipulation; }
+.cmp-cats button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); box-shadow: 0 4px 14px rgba(242,116,5,.4); }
+.cmp-cats-editor { margin-top: 10px; display: grid; gap: 8px; }
+.cmp-cats-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.cmp-cats-lista li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.cmp-cats-editor .addrow input { flex: 1; min-width: 10em; }
+.cmp-form { display: grid; gap: 10px; margin-top: 12px; }
+.cmp-form label.f input, .cmp-form label.f select { width: 100%; }
+.cmp-form #cmp-desc { font-size: 1rem; padding: 10px 12px; min-height: 44px; }
+.cmp-chips { margin-top: -2px; }
+.cmp-chips .hint { align-self: center; }
+.cmp-chips button { min-height: 36px; touch-action: manipulation; }
+.cmp-calc { padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); border: 1px solid var(--accent); font-size: 1rem; }
+.cmp-calc b { font-family: var(--f-num); font-size: 1.15rem; }
+.cmp-calc span { display: block; font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+.cmp-opc summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); min-height: 32px; display: flex; align-items: center; }
+.cmp-peso { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
+.cmp-peso input, .cmp-peso select { min-height: 44px; }
+.cmp-lista { list-style: none; padding: 0; margin: 8px 0 0; }
+.cmp-lista li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 0.92rem; }
+.cmp-lista .h { color: var(--muted); font-size: 0.8rem; font-family: var(--f-num); }
+.cmp-lista .d { min-width: 0; overflow-wrap: anywhere; }
+.cmp-lista .d small { display: block; color: var(--muted); }
+.cmp-lista .t { font-weight: 600; white-space: nowrap; }
+.cmp-lista .acc { display: flex; gap: 6px; }
+.cmp-lista .x { border: 0; background: transparent; color: var(--muted); cursor: pointer; min-width: 36px; min-height: 36px; font-size: 1rem; }
+.cmp-lista-cat { margin: 0 0 8px 12px; }
+.cmp-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.cmp-barras { display: grid; gap: 4px; margin-top: 12px; }
+.cmp-barra { display: grid; grid-template-columns: 8em minmax(0, 1fr) 7.5em; gap: 8px; align-items: center; font: inherit; font-size: 0.9rem; color: var(--ink); background: transparent; border: 0; padding: 6px 0; text-align: left; cursor: pointer; }
+.cmp-barra .c { overflow-wrap: anywhere; }
+.cmp-barra .bar { display: block; }
+.cmp-barra i { display: block; height: 12px; border-radius: 6px; background: var(--accent); }
+.cmp-barra .num { text-align: right; }
+.cmp-barra[aria-expanded="true"] .c { font-weight: 700; color: var(--accent-text); }
+@media (max-width: 480px) { .cmp-cats button { font-size: 0.86rem; } .cmp-barra { grid-template-columns: 6.5em minmax(0, 1fr) 6.8em; } .cmp-peso { grid-template-columns: 1fr 1fr; } .cmp-peso label:last-child { grid-column: 1 / -1; } }

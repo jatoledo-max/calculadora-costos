@@ -66,6 +66,7 @@
       <div class="logo-id"><img id="neg-logo-img" alt="" hidden><h1><span id="neg-titulo"></span> <small>Cuánto te cuesta cada producto y a cuánto venderlo</small></h1></div>
       <nav class="tabs" role="tablist">
         <button id="tab-caja" role="tab" aria-selected="false" data-tab="caja">Caja</button>
+        <button id="tab-compras" role="tab" aria-selected="false" data-tab="compras">Compras</button>
         <button id="tab-tickets" role="tab" aria-selected="false" data-tab="tickets">Tickets</button>
         <button id="tab-informes" role="tab" aria-selected="false" data-tab="informes">Informes</button>
         <button id="tab-productos" role="tab" aria-selected="true" data-tab="productos">Productos</button>
@@ -105,6 +106,32 @@
     <div id="caja-movs" class="card caja-movs" hidden></div>
     <div id="caja-ventas" class="card caja-ventas" hidden></div>
     <div id="caja-cierre" class="card caja-cierre" hidden></div>
+  </section>
+
+  <section id="view-compras" data-view="compras" hidden>
+    <div class="card cmp-carga">
+      <div class="cmp-cab"><h2 class="sec-t">Cargar compra</h2><button class="btn ghost chico" id="cmp-editar-cats" type="button">Editar categorías</button></div>
+      <div id="cmp-cats" class="cmp-cats" aria-label="Categoría"></div>
+      <div id="cmp-cats-editor" class="cmp-cats-editor" hidden></div>
+      <form id="cmp-form" class="cmp-form" novalidate>
+        <label class="f">Qué compraste<input id="cmp-desc" maxlength="120" autocomplete="off" list="cmp-sugeridos" placeholder="Ej: nalga, lechuga, folex"></label>
+        <datalist id="cmp-sugeridos"></datalist>
+        <div id="cmp-chips" class="chips cmp-chips" hidden></div>
+        <label class="f">Cuánto pagaste ($)<input id="cmp-importe" class="n grande" type="number" min="0" step="any" inputmode="decimal" placeholder="$ 0"></label>
+        <div id="cmp-calc" class="cmp-calc" role="status" hidden></div>
+        <details id="cmp-opc" class="cmp-opc"><summary>Poner el peso exacto u otra fecha (opcional)</summary>
+          <div class="cmp-peso">
+            <label class="f">Peso o cantidad<input id="cmp-cant" class="n" type="number" min="0" step="any" inputmode="decimal"></label>
+            <label class="f">Unidad<select id="cmp-unidad"><option value="kg">kg</option><option value="g">gramos</option><option value="u">unidades</option><option value="l">litros</option></select></label>
+            <label class="f">Fecha<input id="cmp-fecha" type="date"></label>
+          </div>
+        </details>
+        <button class="btn primary grande" id="cmp-guardar" type="submit">Guardar compra</button>
+        <p id="cmp-msg" class="caja-msg-txt" role="status"></p>
+      </form>
+    </div>
+    <div id="cmp-hoy" class="card"></div>
+    <div id="cmp-mes" class="card"></div>
   </section>
 
   <section id="view-tickets" data-view="tickets" hidden>
