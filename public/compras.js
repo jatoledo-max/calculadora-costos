@@ -1,7 +1,8 @@
 // Pestaña Compras: cada vez que comprás algo para el negocio lo cargás en tres toques:
 // categoría (Carnicería) › qué compraste (nalga) › cuánto pagaste ($ 21.000). La app calcula cuántos kilos son
 // con el último precio que pagaste por eso; si ponés el peso exacto, aprende el precio nuevo.
-// Cada compra se descuenta sola de la caja abierta, en efectivo o transferencia (como "Compra de mercadería"; no resta de la
+// Cada compra se descuenta sola de la caja abierta, en efectivo o transferencia. Con la caja cerrada se descuenta
+// del "disponible para retirar" del último cierre (la foto del cierre no cambia: se muestra el disponible que queda) (como "Compra de mercadería"; no resta de la
 // ganancia del día porque ese costo ya entra cuando vendés). Abajo: lo de hoy y el mes separado por categoría.
 import { fmtPesos } from "./dinero.js";
 import { SinRespuesta } from "./stores.js";
@@ -23,6 +24,7 @@ export function iniciarCompras(calc, backend, caja, pantallaCaja) {
   const st = {
     hoy: hoyLocal(), mes: hoyLocal().slice(0, 7),
     deHoy: [], delMes: [], delAnterior: [], cargado: false, error: "",
+    ultCaja: null, desdeCierre: [],         // última caja (si está cerrada: compras cargadas después de cerrarla)
     pendienteId: null, enviando: false, medio: "efectivo", editandoCats: false, borrando: null, catAbierta: null,
   };
 
@@ -36,10 +38,44 @@ export function iniciarCompras(calc, backend, caja, pantallaCaja) {
       st.delMes = m.filter((c) => c.fecha >= r.desde);
       st.delAnterior = m.filter((c) => c.fecha < r.desde);
       st.cargado = true; st.error = "";
+      await cargarDisponible();
     } catch (e) {
       st.error = e instanceof SinRespuesta ? "No se pudieron leer las compras: revisá la conexión." : e.message;
     }
     renderListas();
+  }
+
+  // Con la caja cerrada, las compras que cargás salen del disponible para retirar del último cierre.
+  async function cargarDisponible() {
+    st.ultCaja = null; st.desdeCierre = [];
+    if (caja) {
+      try { st.ultCaja = (await caja.cargar()).caja; } catch (e) { st.ultCaja = null; }
+    }
+    const c = st.ultCaja;
+    if (c && c.estado === "cerrada" && c.cerrada_en && c.resumen && c.resumen.disponible_estimado != null) {
+      const lista = await backend.listar(hoyLocal(new Date(c.cerrada_en)), st.hoy);
+      st.desdeCierre = lista.filter((x) => !x.en_caja && String(x.creado_en) > String(c.cerrada_en));
+    }
+    if (pantallaCaja && pantallaCaja.comprasDesdeCierre) pantallaCaja.comprasDesdeCierre(resumen(st.desdeCierre).total);
+    renderDisponible();
+  }
+  const conCierre = () => { const c = st.ultCaja; return c && c.estado === "cerrada" && c.resumen && c.resumen.disponible_estimado != null; };
+  const quedaDisponible = () => Math.round(Number(st.ultCaja.resumen.disponible_estimado) - resumen(st.desdeCierre).total);
+  function renderDisponible() {
+    const box = $("#cmp-disp");
+    box.textContent = "";
+    const c = st.ultCaja;
+    if (c && c.estado === "abierta") {
+      box.hidden = false; box.className = "cmp-disp abierta";
+      box.appendChild(el("span", "k", "Caja " + c.numero + " abierta: las compras se descuentan de la caja."));
+      return;
+    }
+    if (!conCierre()) { box.hidden = true; return; }
+    box.hidden = false; box.className = "cmp-disp";
+    const gastado = resumen(st.desdeCierre).total;
+    box.append(el("span", "k", "Disponible para retirar"), el("span", "v num", fmtPesos(quedaDisponible())),
+      el("span", "note", gastado ? "Del cierre de la caja " + c.numero + " (" + fmtPesos(Math.round(c.resumen.disponible_estimado)) + ") menos " + fmtPesos(gastado) + " de compras."
+        : "Del cierre de la caja " + c.numero + ". Las compras que cargues ahora se descuentan de acá."));
   }
 
   // ---------- Formulario ----------
@@ -181,16 +217,19 @@ export function iniciarCompras(calc, backend, caja, pantallaCaja) {
           aviso = /No hay una caja abierta/.test(e3.message) ? " No había caja abierta: no se descontó de la caja." : " No se descontó de la caja: " + e3.message;
         }
       } else if (caja) aviso = " Es de otro día: no se descontó de la caja de hoy.";
+      if (!compra.en_caja && /No había caja abierta|otro día/.test(aviso) && conCierre()) aviso = "";
       await backend.guardar(compra);
       if (compra.en_caja && pantallaCaja) pantallaCaja.recargar();
       st.pendienteId = null;
       guardarAjustes({ refs: actualizarRefs(refs(), compra) });
-      msg("Guardada: " + compra.descripcion + " " + fmtPesos(compra.importe) + (compra.en_caja ? ", descontada de la caja." : ".") + aviso, !aviso);
       desc.value = ""; imp.value = ""; cant.value = ""; fecha.value = hoyLocal(); $("#cmp-opc").open = false;
       st.medio = "efectivo"; pintarMedio();
       alEscribir();
       desc.focus();
       await cargar();
+      const delDisp = !compra.en_caja && !aviso && conCierre();
+      msg("Guardada: " + compra.descripcion + " " + fmtPesos(compra.importe) + (compra.en_caja ? ", descontada de la caja." :
+        delDisp ? ", descontada del disponible para retirar (te quedan " + fmtPesos(quedaDisponible()) + ")." : ".") + aviso, !aviso);
     } catch (e2) {
       msg(e2 instanceof SinRespuesta ? "No hubo respuesta. Revisá la conexión y tocá Guardar de nuevo (no se duplica)." : e2.message);
     } finally {

@@ -648,3 +648,9 @@ td.acc .btn + .btn { margin-left: 4px; }
 .cmp-barra .num { text-align: right; }
 .cmp-barra[aria-expanded="true"] .c { font-weight: 700; color: var(--accent-text); }
 @media (max-width: 480px) { .cmp-cats button { font-size: 0.86rem; } .cmp-barra { grid-template-columns: 6.5em minmax(0, 1fr) 6.8em; } .cmp-peso { grid-template-columns: 1fr 1fr; } .cmp-peso label:last-child { grid-column: 1 / -1; } }
+.cmp-disp { display: grid; gap: 2px; margin-top: 10px; padding: 10px 12px; border-radius: 14px; background: color-mix(in srgb, var(--good) 14%, var(--glass-strong)); border: 1px solid color-mix(in srgb, var(--good) 50%, var(--line)); }
+.cmp-disp .k { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.cmp-disp .v { font: 600 1.4rem var(--f-num); color: var(--good); }
+.cmp-disp .note { font-size: 0.8rem; color: var(--muted); }
+.cmp-disp.abierta { background: var(--glass-strong); border-color: var(--glass-edge); }
+.cmp-disp.abierta .k { text-transform: none; letter-spacing: 0; font-size: 0.85rem; color: var(--ink); }

@@ -136,6 +136,30 @@ const capturas = process.argv[2];
   await p.click("#tab-caja");
   await p.waitForFunction(() => /anulado: Compra borrada/.test(document.querySelector("#caja-movs").textContent));
 
+  // Con la caja cerrada, la compra sale del disponible para retirar del último cierre.
+  await p.click("#tab-compras");
+  await p.locator("#cmp-hoy li", { hasText: "Queso tybo" }).locator("button.x").click();
+  await p.locator("#cmp-hoy li", { hasText: "Queso tybo" }).locator("button", { hasText: "Borrar" }).click();
+  await p.waitForFunction(() => /devuelta a la caja/.test(document.querySelector("#cmp-msg").textContent));
+  assert.match(await p.textContent("#cmp-disp"), /Caja 1 abierta: las compras se descuentan de la caja/);
+  await p.click("#tab-caja");
+  await p.click("#caja-btn-cerrar");
+  await p.fill("#caja-cierre-contado", "50000");
+  await p.fill("#caja-cierre-fondo", "10000");
+  await p.click("#caja-cierre-ok");
+  await p.waitForFunction(() => /cerrada/.test(document.querySelector("#caja-estado").textContent));
+  await p.click("#tab-compras");
+  await p.waitForFunction(() => /Disponible para retirar\$ 40\.000/.test(document.querySelector("#cmp-disp").textContent));
+  await cat("Bebidas").click();
+  await p.fill("#cmp-desc", "Gaseosas"); await p.fill("#cmp-importe", "15000"); await p.click("#cmp-guardar");
+  await p.waitForFunction(() => /descontada del disponible para retirar \(te quedan \$ 25\.000\)/.test(document.querySelector("#cmp-msg").textContent));
+  assert.match(await p.textContent("#cmp-disp"), /\$ 25\.000.*\(\$ 40\.000\) menos \$ 15\.000 de compras/s);
+  await p.click("#tab-caja");
+  await p.waitForFunction(() => /Disponible después de compras\$ 25\.000/.test(document.querySelector("#caja-estado").textContent));
+  await foto("3-caja-cerrada-disponible");
+  await p.click("#tab-compras");
+  await foto("4-compras-con-caja-cerrada");
+
   // Sin desborde horizontal en el celular.
   assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "la página no se corre de costado");
   assert.deepEqual(errores, []);

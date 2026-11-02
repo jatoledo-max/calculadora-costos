@@ -111,6 +111,7 @@
   <section id="view-compras" data-view="compras" hidden>
     <div class="card cmp-carga">
       <div class="cmp-cab"><h2 class="sec-t">Cargar compra</h2><button class="btn ghost chico" id="cmp-editar-cats" type="button">Editar categorías</button></div>
+      <div id="cmp-disp" class="cmp-disp" role="status" hidden></div>
       <div id="cmp-cats" class="cmp-cats" aria-label="Categoría"></div>
       <div id="cmp-cats-editor" class="cmp-cats-editor" hidden></div>
       <form id="cmp-form" class="cmp-form" novalidate>
@@ -129,7 +130,7 @@
         <div class="fila-chips" id="cmp-medio"><span class="k">Pagué con</span><button class="chip" type="button" data-medio="efectivo" aria-pressed="true">Efectivo</button><button class="chip" type="button" data-medio="transferencia" aria-pressed="false">Transferencia</button></div>
         <button class="btn primary grande" id="cmp-guardar" type="submit">Guardar compra</button>
         <p id="cmp-msg" class="caja-msg-txt" role="status"></p>
-        <p class="hint">Se descuenta sola de la caja abierta. No resta de la ganancia del día: ese costo ya entra cuando vendés.</p>
+        <p class="hint">Se descuenta sola de la caja abierta o, con la caja cerrada, del disponible para retirar del último cierre. No resta de la ganancia del día: ese costo ya entra cuando vendés.</p>
       </form>
     </div>
     <div id="cmp-hoy" class="card"></div>
