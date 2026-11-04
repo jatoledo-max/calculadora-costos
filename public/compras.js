@@ -62,11 +62,12 @@ export function iniciarCompras(calc, backend, caja, pantallaCaja) {
     if (pantallaCaja && pantallaCaja.saldoCompras) pantallaCaja.saldoCompras(st.saldo && st.saldo.cierres ? st.saldo.saldo : null);
     renderDisponible();
   }
-  // Desde cuándo se suma: la fecha que elegiste o, si nunca elegiste, el día de tu primera compra cargada.
+  // Desde cuándo se suma: la fecha que elegiste o, si nunca elegiste, el día anterior a tu primera compra cargada.
   function desdeSaldo() {
     const d = ajustes().saldoDesde;
     if (/^\d{4}-\d{2}-\d{2}$/.test(d || "")) return d;
-    return st.primeraCompra || null;
+    // Un día antes, así entra el cierre de la noche anterior (con esa plata se hizo la primera compra).
+    return st.primeraCompra ? hoyLocal(new Date(new Date(st.primeraCompra + "T12:00:00").getTime() - 86400000)) : null;
   }
   const conCierre = () => !!(st.saldo && st.saldo.cierres) && !(st.ultCaja && st.ultCaja.estado === "abierta");
   const quedaDisponible = () => st.saldo.saldo;
