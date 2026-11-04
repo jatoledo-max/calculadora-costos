@@ -1,7 +1,7 @@
 // Cuentas de la pestaña Compras (public/compras-datos.js).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { precioReferencia, cantidadDe, fmtCantidad, actualizarRefs, loDeSiempre, resumen, errorCompra, hoyLocal, rangoMes, mesCorrido, clave } from "../public/compras-datos.js";
+import { saldoCompras, precioReferencia, cantidadDe, fmtCantidad, actualizarRefs, loDeSiempre, resumen, errorCompra, hoyLocal, rangoMes, mesCorrido, clave } from "../public/compras-datos.js";
 
 const insumos = { i1: { nombre: "Lomo", cantidad: 6, unidad: "u", precio: 123000 }, i2: { nombre: "Queso tybo", cantidad: 1, unidad: "kg", precio: 9000 } };
 
@@ -60,4 +60,15 @@ test("validación y fechas", () => {
   assert.deepEqual(rangoMes("2026-02"), { desde: "2026-02-01", hasta: "2026-02-28", dias: 28 });
   assert.equal(mesCorrido("2026-01", -1), "2025-12");
   assert.equal(clave("Carnicería  Ñandú"), "carniceria nandu");
+});
+
+test("lo que queda para compras se suma de un cierre al otro", () => {
+  const cajas = [
+    { estado: "cerrada", resumen: { disponible_estimado: 40000, resultado_estimado: 10000 } },
+    { estado: "cerrada", resumen: { disponible_estimado: 30000, resultado_estimado: -2000 } },   // pérdida: no resta ganancia
+    { estado: "abierta", resumen: null },
+  ];
+  const compras = [{ importe: 15000, en_caja: false }, { importe: 5000, en_caja: true }];   // la de la caja ya bajó el disponible
+  assert.deepEqual(saldoCompras(cajas, compras), { cierres: 2, disponible: 70000, ganancia: 10000, compras: 15000, saldo: 45000 });
+  assert.equal(saldoCompras([], []).cierres, 0);
 });

@@ -7,7 +7,7 @@
 import { fmtPesos } from "./dinero.js";
 import { SinRespuesta } from "./stores.js";
 import {
-  CATEGORIAS_INICIALES, UNIDADES, clave, hoyLocal, rangoMes, mesCorrido, nombreMes, precioReferencia, cantidadDe,
+  CATEGORIAS_INICIALES, saldoCompras, UNIDADES, clave, hoyLocal, rangoMes, mesCorrido, nombreMes, precioReferencia, cantidadDe,
   fmtCantidad, nombreUnidad, actualizarRefs, loDeSiempre, resumen, errorCompra,
 } from "./compras-datos.js";
 
@@ -24,9 +24,11 @@ export function iniciarCompras(calc, backend, caja, pantallaCaja) {
   const st = {
     hoy: hoyLocal(), mes: hoyLocal().slice(0, 7),
     deHoy: [], delMes: [], delAnterior: [], cargado: false, error: "",
-    ultCaja: null, desdeCierre: [],         // última caja (si está cerrada: compras cargadas después de cerrarla)
+    ultCaja: null, saldo: null, desde: null, primeraCompra: null,   // última caja y lo que queda para compras (sumando cierres)
     pendienteId: null, enviando: false, medio: "efectivo", editandoCats: false, borrando: null, catAbierta: null,
   };
+
+  const ddmm = (f) => f.slice(8) + "/" + f.slice(5, 7);
 
   // ---------- Carga ----------
   async function cargar() {
@@ -38,6 +40,7 @@ export function iniciarCompras(calc, backend, caja, pantallaCaja) {
       st.delMes = m.filter((c) => c.fecha >= r.desde);
       st.delAnterior = m.filter((c) => c.fecha < r.desde);
       st.cargado = true; st.error = "";
+      if (!st.primeraCompra && !ajustes().saldoDesde) st.primeraCompra = await backend.primeraFecha();
       await cargarDisponible();
     } catch (e) {
       st.error = e instanceof SinRespuesta ? "No se pudieron leer las compras: revisá la conexión." : e.message;
@@ -45,41 +48,55 @@ export function iniciarCompras(calc, backend, caja, pantallaCaja) {
     renderListas();
   }
 
-  // Con la caja cerrada, las compras que cargás salen del disponible para retirar del último cierre.
+  // Lo que te queda para compras se va sumando de un cierre al otro (desde la fecha que elijas):
+  // por cada caja cerrada, su disponible para retirar menos tu ganancia; menos las compras que no salieron de una caja abierta.
   async function cargarDisponible() {
-    st.ultCaja = null; st.desdeCierre = [];
-    if (caja) {
-      try { st.ultCaja = (await caja.cargar()).caja; } catch (e) { st.ultCaja = null; }
+    st.ultCaja = null; st.saldo = null;
+    if (!caja) { renderDisponible(); return; }
+    try { st.ultCaja = (await caja.cargar()).caja; } catch (e) { st.ultCaja = null; }
+    st.desde = desdeSaldo();
+    if (st.desde) {
+      const [cajas, compras] = await Promise.all([caja.listarCajas(st.desde, st.hoy), backend.listar(st.desde, st.hoy)]);
+      st.saldo = saldoCompras(cajas, compras);
     }
-    const c = st.ultCaja;
-    if (c && c.estado === "cerrada" && c.cerrada_en && c.resumen && c.resumen.disponible_estimado != null) {
-      const lista = await backend.listar(hoyLocal(new Date(c.cerrada_en)), st.hoy);
-      st.desdeCierre = lista.filter((x) => !x.en_caja && String(x.creado_en) > String(c.cerrada_en));
-    }
-    if (pantallaCaja && pantallaCaja.comprasDesdeCierre) pantallaCaja.comprasDesdeCierre(conCierre() ? gananciaCierre() + resumen(st.desdeCierre).total : null);
+    if (pantallaCaja && pantallaCaja.saldoCompras) pantallaCaja.saldoCompras(st.saldo && st.saldo.cierres ? st.saldo.saldo : null);
     renderDisponible();
   }
-  const conCierre = () => { const c = st.ultCaja; return c && c.estado === "cerrada" && c.resumen && c.resumen.disponible_estimado != null; };
-  // Lo que queda para compras = disponible para retirar del cierre − tu ganancia de esa caja (es tuya) − compras ya cargadas.
-  const gananciaCierre = () => Math.max(0, Math.round(Number(st.ultCaja.resumen.resultado_estimado) || 0));
-  const quedaDisponible = () => Math.round(Number(st.ultCaja.resumen.disponible_estimado) - gananciaCierre() - resumen(st.desdeCierre).total);
+  // Desde cuándo se suma: la fecha que elegiste o, si nunca elegiste, el día de tu primera compra cargada.
+  function desdeSaldo() {
+    const d = ajustes().saldoDesde;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d || "")) return d;
+    return st.primeraCompra || null;
+  }
+  const conCierre = () => !!(st.saldo && st.saldo.cierres) && !(st.ultCaja && st.ultCaja.estado === "abierta");
+  const quedaDisponible = () => st.saldo.saldo;
   function renderDisponible() {
     const box = $("#cmp-disp");
     box.textContent = "";
     const c = st.ultCaja;
-    if (c && c.estado === "abierta") {
-      box.hidden = false; box.className = "cmp-disp abierta";
-      box.appendChild(el("span", "k", "Caja " + c.numero + " abierta: las compras se descuentan de la caja."));
+    const s = st.saldo;
+    if (!s || !s.cierres) {
+      box.hidden = !(c && c.estado === "abierta");
+      box.className = "cmp-disp abierta";
+      if (!box.hidden) box.appendChild(el("span", "k", "Caja " + c.numero + " abierta: las compras se descuentan de la caja."));
       return;
     }
-    if (!conCierre()) { box.hidden = true; return; }
-    box.hidden = false; box.className = "cmp-disp";
-    const gastado = resumen(st.desdeCierre).total;
-    const q = quedaDisponible();
-    if (q < 0) box.classList.add("neg");
-    box.append(el("span", "k", "Te queda para compras"), el("span", "v num", fmtPesos(q)),
-      el("span", "note", "Disponible del cierre de la caja " + c.numero + " " + fmtPesos(Math.round(c.resumen.disponible_estimado)) +
-        " − tu ganancia " + fmtPesos(gananciaCierre()) + (gastado ? " − compras " + fmtPesos(gastado) : "") + ". Las compras que cargues ahora se descuentan de acá."));
+    box.hidden = false; box.className = "cmp-disp" + (s.saldo < 0 ? " neg" : "");
+    box.append(el("span", "k", "Te queda para compras"), el("span", "v num", fmtPesos(s.saldo)));
+    box.appendChild(el("span", "note", "Suma de " + s.cierres + (s.cierres === 1 ? " cierre" : " cierres") + " desde el " + ddmm(st.desde) + ": disponible " +
+      fmtPesos(s.disponible) + " − tu ganancia " + fmtPesos(s.ganancia) + (s.compras ? " − compras " + fmtPesos(s.compras) : "") + "."));
+    if (c && c.estado === "abierta") box.appendChild(el("span", "note", "Caja " + c.numero + " abierta: las compras de ahora se descuentan de la caja y entran acá cuando la cerrás."));
+    const fila = el("span", "cmp-desde");
+    const b = el("button", "btn ghost chico", "Cambiar desde cuándo se suma"); b.type = "button";
+    b.onclick = () => {
+      const i = el("input"); i.type = "date"; i.value = st.desde; i.max = st.hoy; i.setAttribute("aria-label", "Sumar desde");
+      const ok = el("button", "btn primary chico", "Listo"); ok.type = "button";
+      ok.onclick = () => { if (/^\d{4}-\d{2}-\d{2}$/.test(i.value)) { guardarAjustes({ saldoDesde: i.value }); setTimeout(cargar, 0); } };
+      fila.replaceChildren(el("span", "hint", "Sumar desde"), i, ok);
+      i.focus();
+    };
+    fila.appendChild(b);
+    box.appendChild(fila);
   }
 
   // ---------- Formulario ----------
@@ -243,7 +260,6 @@ export function iniciarCompras(calc, backend, caja, pantallaCaja) {
   $("#cmp-editar-cats").onclick = () => { st.editandoCats = !st.editandoCats; renderEditor(); if (st.editandoCats) $("#cmp-cat-nueva").focus(); };
 
   // ---------- Listas ----------
-  const ddmm = (f) => f.slice(8) + "/" + f.slice(5, 7);
   const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
   const detalle = (c) => [c.descripcion, c.cantidad ? (c.estimada ? "≈ " : "") + fmtCantidad(c.cantidad, c.unidad) : "", c.en_caja ? (c.medio === "transferencia" ? "de la caja (transferencia)" : "de la caja") : ""].filter(Boolean).join(" · ");
 

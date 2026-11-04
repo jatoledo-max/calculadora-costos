@@ -117,6 +117,22 @@ export function resumen(compras) {
   };
 }
 
+// Lo que te queda para compras, sumando cierres: por cada caja cerrada, su disponible para retirar menos tu ganancia
+// (si dio pérdida no se resta nada); menos las compras que no se descontaron de una caja abierta (esas ya bajaron el disponible).
+export function saldoCompras(cajas, compras) {
+  let disp = 0, gan = 0, cierres = 0;
+  (cajas || []).forEach((c) => {
+    const r = c && c.estado === "cerrada" ? c.resumen : null;
+    if (!r || r.disponible_estimado == null) return;
+    cierres++;
+    disp += Math.round(Number(r.disponible_estimado) * 100);
+    gan += Math.max(0, Math.round(Number(r.resultado_estimado || 0) * 100));
+  });
+  const comp = (compras || []).filter((x) => !x.en_caja).reduce((a, x) => a + Math.round(Number(x.importe) * 100), 0);
+  const pesos = (n) => Math.round(n / 100);
+  return { cierres, disponible: pesos(disp), ganancia: pesos(gan), compras: pesos(comp), saldo: pesos(disp - gan - comp) };
+}
+
 // Revisa una compra antes de guardarla. Devuelve el texto del error o null.
 export function errorCompra(c) {
   if (!c.categoria) return "Elegí la categoría.";
@@ -151,6 +167,10 @@ export function supabaseCompras(supabase, negocioId) {
         if (d.length < 1000) return filas.map((c) => Object.assign(c, { importe: Number(c.importe), cantidad: c.cantidad == null ? null : Number(c.cantidad) }));
       }
     },
+    async primeraFecha() {
+      const d = await llamar(() => supabase.from("compras").select("fecha").order("fecha", { ascending: true }).limit(1));
+      return d[0] ? d[0].fecha : null;
+    },
     guardar: (c) => llamar(() => supabase.from("compras").upsert(Object.assign({ negocio_id: negocioId }, c), { onConflict: "id", ignoreDuplicates: true })),
     borrar: (id) => llamar(() => supabase.from("compras").delete().eq("id", id)),
   };
@@ -166,6 +186,7 @@ export function localCompras() {
       return leer().filter((c) => c.fecha >= desde && c.fecha <= hasta)
         .sort((a, b) => b.fecha.localeCompare(a.fecha) || String(b.creado_en).localeCompare(String(a.creado_en)));
     },
+    async primeraFecha() { const f = leer().map((c) => c.fecha).sort(); return f[0] || null; },
     async guardar(c) { const cs = leer(); if (!cs.some((x) => x.id === c.id)) { cs.push(c); escribir(cs); } },
     async borrar(id) { escribir(leer().filter((c) => c.id !== id)); },
   };

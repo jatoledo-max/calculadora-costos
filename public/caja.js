@@ -33,7 +33,7 @@ export function iniciarCaja(calc, backend) {
     anular: null,                         // { id, motivo, enviando } de la venta o el movimiento que se está anulando
     msgVentas: null, msgMovs: null,
     cierre: cierreVacio(),
-    comprasCierre: null,                  // ganancia + compras cargadas (pestaña Compras) después del último cierre
+    saldoCompras: null,                   // lo que queda para compras sumando cierres (lo calcula la pestaña Compras)
   };
   // El carrito se guarda en el celular: si se cierra la app o se recarga a mitad de una venta, sigue ahí.
   // Incluye el id de la venta en curso, así un reintento después de recargar tampoco duplica.
@@ -286,11 +286,10 @@ export function iniciarCaja(calc, backend) {
       e.textContent = c ? "Caja " + c.numero + " cerrada" + (c.cerrada_en ? " a las " + hora(c.cerrada_en) : "") : "Caja cerrada";
       if (c && c.estado === "cerrada" && st.resumen && st.resumen.efectivo_contado != null) {
         gananciaEnEstado(e, "Ganancia de la caja");
-        // Lo que queda para compras: disponible del cierre − ganancia de la caja − compras cargadas después (Compras lo calcula;
-        // la foto del cierre no cambia).
-        if (st.comprasCierre != null && st.resumen.disponible_estimado != null) {
+        // Lo que queda para compras, sumando cierres (lo calcula la pestaña Compras; la foto del cierre no cambia).
+        if (st.saldoCompras != null) {
           const d = el("div", "caja-ganancia caja-disp"); d.id = "caja-disp";
-          d.append(el("span", "k", "Te queda para compras"), el("span", "v num", fmtPesos(Math.round(Number(st.resumen.disponible_estimado) - st.comprasCierre))));
+          d.append(el("span", "k", "Te queda para compras"), el("span", "v num", fmtPesos(st.saldoCompras)));
           e.appendChild(d);
         }
       }
@@ -737,5 +736,5 @@ export function iniciarCaja(calc, backend) {
     return true;
   }
   return { recargar, cargarTicket, hayAbierta: () => !!(st.caja && st.caja.estado === "abierta"),
-    comprasDesdeCierre: (n) => { if (st.comprasCierre !== n) { st.comprasCierre = n; renderEstado(); } } };
+    saldoCompras: (n) => { if (st.saldoCompras !== n) { st.saldoCompras = n; renderEstado(); } } };
 }

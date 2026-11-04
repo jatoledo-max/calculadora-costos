@@ -655,3 +655,4 @@ td.acc .btn + .btn { margin-left: 4px; }
 .cmp-disp.abierta { background: var(--glass-strong); border-color: var(--glass-edge); }
 .cmp-disp.abierta .k { text-transform: none; letter-spacing: 0; font-size: 0.85rem; color: var(--ink); }
 .cmp-disp.neg .v { color: var(--bad); }
+.cmp-desde { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }

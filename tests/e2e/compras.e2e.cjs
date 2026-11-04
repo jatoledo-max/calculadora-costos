@@ -155,15 +155,27 @@ const capturas = process.argv[2];
   await p.waitForFunction(() => /cerrada/.test(document.querySelector("#caja-estado").textContent));
   const ganancia = Number((await p.textContent("#caja-ganancia .v")).replace(/\D/g, ""));
   assert.ok(ganancia > 0, "la caja tiene ganancia");
-  const pesos = (n) => "$ " + n.toLocaleString("es-AR");
+  const pesos = (n) => (n < 0 ? "− $ " : "$ ") + Math.abs(n).toLocaleString("es-AR");
+  const disp = () => p.textContent("#cmp-disp");
   await p.click("#tab-compras");
-  await p.waitForFunction((t) => document.querySelector("#cmp-disp").textContent.includes("Te queda para compras" + t), pesos(48000 - ganancia));
+  // Se suma desde la primera compra cargada (la del mes pasado): todas las compras sin caja restan.
+  const sinCaja = 155000 + 21600 + 21000 + 36000 + 90000;
+  await p.waitForFunction((t) => document.querySelector("#cmp-disp").textContent.includes("Te queda para compras" + t), pesos(48000 - ganancia - sinCaja));
+  assert.match(await disp(), new RegExp("Suma de 1 cierre desde el 10/" + fMesPasado.slice(5, 7)));
+  // Cambiar desde cuándo se suma: hoy.
+  await p.locator("#cmp-disp button", { hasText: "Cambiar" }).click();
+  const hoyF = hoy.getFullYear() + "-" + p2(hoy.getMonth() + 1) + "-" + p2(hoy.getDate());
+  await p.fill("#cmp-disp input[type=date]", hoyF);
+  await p.locator("#cmp-disp button", { hasText: "Listo" }).click();
+  const sinCajaHoy = sinCaja - 155000;
+  await p.waitForFunction((t) => document.querySelector("#cmp-disp").textContent.includes("Te queda para compras" + t), pesos(48000 - ganancia - sinCajaHoy));
   await cat("Bebidas").click();
   await p.fill("#cmp-desc", "Gaseosas"); await p.fill("#cmp-importe", "15000"); await p.click("#cmp-guardar");
-  const queda = pesos(48000 - ganancia - 15000);
+  const queda = pesos(48000 - ganancia - sinCajaHoy - 15000);
   await p.waitForFunction((t) => document.querySelector("#cmp-msg").textContent.includes("descontada del disponible (te quedan " + t + " para compras)"), queda);
-  assert.ok((await p.textContent("#cmp-disp")).includes("$ 48.000 − tu ganancia " + pesos(ganancia) + " − compras $ 15.000"));
-  await p.click("#tab-caja");
+  assert.ok((await disp()).includes("disponible $ 48.000 − tu ganancia " + pesos(ganancia) + " − compras " + pesos(sinCajaHoy + 15000)));
+  // Con la caja abierta de nuevo, el saldo sigue a la vista y las compras van a la caja.
+    await p.click("#tab-caja");
   await p.waitForFunction((t) => document.querySelector("#caja-estado").textContent.includes("Te queda para compras" + t), queda);
   await foto("3-caja-cerrada-disponible");
   await p.click("#tab-compras");
